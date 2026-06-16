@@ -62,4 +62,4 @@ listed above still need to be present for it to run.
 
 ## License
 
-TBD. No license file is included yet; default copyright applies in the meantime.
+[MIT](./LICENSE).
