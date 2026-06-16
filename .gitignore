@@ -1,0 +1,19 @@
+# Rojo / Roblox build artifacts
+/*.rbxl
+/*.rbxlx
+/*.rbxm
+/*.rbxmx
+
+# Argon
+/sourcemap.json
+
+# Wally
+/Packages
+/ServerPackages
+/DevPackages
+
+# Lock files
+/*.lock
+
+# Misc
+.DS_Store

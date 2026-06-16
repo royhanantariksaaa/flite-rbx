@@ -1,0 +1,13 @@
+{
+  "name": "Flite",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Libraries": {
+        "Flite": {
+          "$path": "."
+        }
+      }
+    }
+  }
+}
