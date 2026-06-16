@@ -15,7 +15,7 @@
 		totalLevel:observe(player, fn)
 ]]
 
-local Signal = require(game:GetService("ReplicatedStorage").Libraries.WeaveSignal)
+local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
 
 local ComputedState = {}

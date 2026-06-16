@@ -1,4 +1,4 @@
-local Signal = require(game:GetService("ReplicatedStorage").Libraries.WeaveSignal)
+local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 
 local DomainBus = {}
 

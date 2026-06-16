@@ -21,26 +21,27 @@ end)
 Flite.start()
 ```
 
-## Runtime sibling requirements
+## Runtime requirements
 
-Flite uses **absolute requires** to sibling modules in `ReplicatedStorage.Libraries`.
-At runtime, the following must be present as siblings of `Flite`:
+Flite uses **absolute requires** to modules in `ReplicatedStorage.Libraries`.
+At runtime, the following must be present:
 
-- `Weave` — `ReplicatedStorage.Libraries.Weave` (client controllers; also brings its own siblings)
-- `WeaveSignal` — `ReplicatedStorage.Libraries.WeaveSignal` (signals & state replication)
+- [`Weave`](https://github.com/royhanantariksaaa/weave-rbx) — `ReplicatedStorage.Libraries.Weave` (client controllers; also brings its own requirements)
+- [`Echo`](https://github.com/royhanantariksaaa/echo-rbx) — `ReplicatedStorage.Libraries.Echo` (signals & state replication)
+- [`WeaveKit`](https://github.com/royhanantariksaaa/weavekit-rbx) — `ReplicatedStorage.Libraries.WeaveKit` (only for the optional client `useTheme` hook)
 - `Promise` — `ReplicatedStorage.Libraries.Promise`
 - `Tween` — `ReplicatedStorage.Libraries.Tween`
-- `WeaveKit` — `ReplicatedStorage.Libraries.WeaveKit` (only for the optional client `useTheme` hook)
 
-`WeaveSignal`, `Promise`, and `Tween` are leaf single-file utilities and are
-intentionally **not** vendored here. When starting a fresh game, drop these files
-into `ReplicatedStorage.Libraries/` (a few small modules).
+`Weave`, `Echo`, and `WeaveKit` are their own libraries (see links). `Promise` and
+`Tween` are leaf single-file utilities and are intentionally **not** vendored here.
+When starting a fresh game, drop these files into `ReplicatedStorage.Libraries/`.
 
 ## Consume as a git submodule
 
 From your game repo root (assuming `src/Shared` maps to `ReplicatedStorage`):
 
 ```sh
+git submodule add https://github.com/royhanantariksaaa/echo-rbx.git src/Shared/Libraries/Echo
 git submodule add https://github.com/royhanantariksaaa/weave-rbx.git src/Shared/Libraries/Weave
 git submodule add https://github.com/royhanantariksaaa/weavekit-rbx.git src/Shared/Libraries/WeaveKit
 git submodule add https://github.com/royhanantariksaaa/flite-rbx.git src/Shared/Libraries/Flite

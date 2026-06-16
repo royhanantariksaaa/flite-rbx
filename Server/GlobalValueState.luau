@@ -13,7 +13,7 @@
 
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local MessagingService = game:GetService("MessagingService")
-local Signal = require(game:GetService("ReplicatedStorage").Libraries.WeaveSignal)
+local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 local Promise = require(game:GetService("ReplicatedStorage").Libraries.Promise)
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
 

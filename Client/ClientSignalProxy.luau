@@ -9,7 +9,7 @@
 		signal:fireServer(...)   -- Fire event to the server
 ]]
 
-local Signal = require(game:GetService("ReplicatedStorage").Libraries.WeaveSignal)
+local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 local BufferCodec = require(script.Parent.Parent.Shared.BufferCodec)
 
 local ClientSignalProxy = {}

@@ -1,6 +1,6 @@
 local FrameworkSignal = require(script.Parent.Parent.FrameworkSignal)
 local MessagingService = game:GetService("MessagingService")
-local WeaveSignal = require(game:GetService("ReplicatedStorage").Libraries.WeaveSignal)
+local Echo = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 
 local SignalRegistration = {}
 
@@ -39,7 +39,7 @@ function SignalRegistration.bind(context: any, config: any)
 	function context:useGlobalSignal(nameStr: string)
 		config.validateFieldName(nameStr)
 		local globalKey = config.serviceName .. "_" .. nameStr
-		local localSignal = WeaveSignal.new()
+		local localSignal = Echo.new()
 
 		local subscription = MessagingService:SubscribeAsync(globalKey, function(message)
 			local payload = message.Data
