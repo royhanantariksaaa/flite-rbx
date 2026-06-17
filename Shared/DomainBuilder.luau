@@ -1,3 +1,4 @@
+--!optimize 2
 --[=[
 	@module DomainBuilder
 	@within Flite

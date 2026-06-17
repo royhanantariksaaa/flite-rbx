@@ -1,3 +1,4 @@
+--!optimize 2
 --[=[
 	@module ClientSignalProxy
 	@within Flite

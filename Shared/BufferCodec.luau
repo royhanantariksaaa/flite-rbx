@@ -1,92 +1,64 @@
+--!native
+--!optimize 2
 --[=[
 	@module BufferCodec
 	@within Flite
 
-	Responsible for taking a payload of arguments `...`, matching them to an
-	array of `t` schema validators defined in `config.args`, and dynamically
-	allocating a pure Luau buffer that spans the entire byte-size of the payload.
+	Serializes schema-backed values into a Luau buffer payload and Instance
+	side-channel table. Callers should wrap serialize/deserialize in pcall
+	to handle malformed input — the internal loops are pcall-free for speed.
 ]=]
 
 local BufferCodec = {}
 
 --[=[
-	Compresses an arbitrary list of arguments into a unified Buffer and Instance Array.
-	Returns (buf, inst_array)
+	Serializes schema-backed values into a buffer payload and Instance side table.
 
 	@param schemas { any } -- ordered `t` schemas matching the argument list
 	@param ... any -- values to serialize
 	@return buffer -- packed binary payload
 	@return { Instance } -- side-channel instance references
 ]=]
---[=[
-	Serializes schema-backed values into a buffer payload and Instance side table.
-	@param schemas schemas: {any}
-	@return (buffer, { Instance })
-]=]
 function BufferCodec.serialize(schemas: {any}, ...: any): (buffer, {Instance})
 	local args = table.pack(...)
+	local count = #schemas
 	local totalSize = 0
-	
-	-- 1. Measure the exact byte payload needed.
-	for i = 1, #schemas do
-		local schema = schemas[i]
-		local val = args[i]
-		
-		-- Safely measure size even if val is unexpectedly nil (to prevent crashes on bad client calls)
-		local success, size = pcall(schema.getSize, val)
-		if not success then size = 0 end
-		totalSize += size
+
+	for i = 1, count do
+		totalSize += schemas[i].getSize(args[i])
 	end
-	
-	-- 2. Allocate the exact buffer size
+
 	local buf = buffer.create(totalSize)
 	local inst_array = {}
 	local cursor = 0
-	
-	-- 3. Write each value securely into the buffer sequentially.
-	for i = 1, #schemas do
-		local schema = schemas[i]
-		local val = args[i]
-		
-		-- Safely pack even if val is unexpectedly nil
-		local success, newCursor = pcall(schema.pack, buf, cursor, val, inst_array)
-		if success then
-			cursor = newCursor
-		end
+
+	for i = 1, count do
+		cursor = schemas[i].pack(buf, cursor, args[i], inst_array)
 	end
-	
+
 	return buf, inst_array
 end
 
 --[=[
-	Decompresses a unified Buffer + Instance Array back into a table of native Lua arguments.
-	Returns an array of reconstructed arguments.
+	Deserializes a buffer payload and Instance side table into Luau values.
 
 	@param schemas { any } -- ordered `t` schemas used to unpack the payload
 	@param buf buffer -- packed binary payload
 	@param inst_array { Instance } -- side-channel instance references
 	@return { any } -- reconstructed arguments with `n` set to schema count
 ]=]
---[=[
-	Deserializes a buffer payload and Instance side table into Luau values.
-	@param schemas schemas: {any}
-	@param buf buf: buffer
-	@param inst_array inst_array: {Instance}
-	@return { any }
-]=]
 function BufferCodec.deserialize(schemas: {any}, buf: buffer, inst_array: {Instance}): {any}
-	local results = table.create(#schemas)
+	local count = #schemas
+	local results = table.create(count)
 	local cursor = 0
-	
-	for i = 1, #schemas do
-		local schema = schemas[i]
-		local val, nextCursor = schema.unpack(buf, cursor, inst_array)
-		
+
+	for i = 1, count do
+		local val, nextCursor = schemas[i].unpack(buf, cursor, inst_array)
 		results[i] = val
 		cursor = nextCursor
 	end
-	
-	results.n = #schemas
+
+	results.n = count
 	return results
 end
 

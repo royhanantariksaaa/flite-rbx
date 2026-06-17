@@ -1,3 +1,5 @@
+--!native
+--!optimize 2
 --[=[
 	@module FrameworkSignal
 	@within Flite

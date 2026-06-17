@@ -1,3 +1,4 @@
+--!optimize 2
 --[=[
 	@module NetworkDispatcher
 	@within Flite
@@ -18,6 +19,62 @@ local STREAM_SERVICE = "__FrameworkStream"
 local STREAM_PROGRESS_SIGNAL = "Progress"
 local BUFFER_RETURN_TAG = "__frameworkBufferReturn"
 
+local _signalEvent: RemoteEvent?
+
+local RequestContext = {}
+RequestContext.__index = RequestContext
+
+function RequestContext:elapsedMs(): number
+	return (os.clock() - self._startedAt) * 1000
+end
+
+function RequestContext:remainingMs(): number?
+	if not self.timeoutMs then return nil end
+	return math.max(0, self.timeoutMs - ((os.clock() - self._startedAt) * 1000))
+end
+
+function RequestContext:isTimedOut(): boolean
+	if not self.timeoutMs then return false end
+	return ((os.clock() - self._startedAt) * 1000) >= self.timeoutMs
+end
+
+function RequestContext:isCanceled(): boolean
+	if self:isTimedOut() then return true end
+	if type(self._tokenId) ~= "string" or #self._tokenId == 0 then return false end
+	local bucket = self._cancelledRequests[self.player]
+	return bucket and bucket[self._tokenId] == true or false
+end
+
+function RequestContext:assertActive(): (boolean, any?)
+	if self:isTimedOut() then
+		return false, FrameworkError.new(
+			FrameworkError.Codes.Timeout,
+			`Request timeout in {self.scope}.{self.method}`
+		)
+	end
+	if type(self._tokenId) == "string" and #self._tokenId > 0 then
+		local bucket = self._cancelledRequests[self.player]
+		if bucket and bucket[self._tokenId] == true then
+			bucket[self._tokenId] = nil
+			return false, FrameworkError.new(
+				FrameworkError.Codes.Canceled,
+				`Request canceled in {self.scope}.{self.method}`
+			)
+		end
+	end
+	return true, nil
+end
+
+function RequestContext:error(code: string, message: string, details: any?)
+	return FrameworkError.new(code, message, details)
+end
+
+function RequestContext:pushProgress(progressPayload: any)
+	if self.metadata == nil or type(self.metadata.requestId) ~= "string" then return end
+	if not self:assertActive() then return end
+	_signalEvent:FireClient(self.player, STREAM_SERVICE, STREAM_PROGRESS_SIGNAL, self.metadata.requestId, progressPayload)
+end
+
 --[=[
 	Initializes the global remote event listeners.
 	@param services Reference to the server's `services` cache
@@ -28,6 +85,7 @@ function NetworkDispatcher.initialize(services: any, domains: any, FrameworkComm
 	local Players = game:GetService("Players")
 	local stateEvent: RemoteEvent = FrameworkComm:FindFirstChild("StateEvent") :: RemoteEvent
 	local signalEvent: RemoteEvent = FrameworkComm:FindFirstChild("SignalEvent") :: RemoteEvent
+	_signalEvent = signalEvent
 	local unreliableSignalEvent: UnreliableRemoteEvent = FrameworkComm:FindFirstChild("UnreliableSignalEvent") :: UnreliableRemoteEvent
 	local methodEvent: RemoteFunction = FrameworkComm:FindFirstChild("MethodEvent") :: RemoteFunction
 	local cancelledRequestsByPlayer = {}
@@ -209,88 +267,16 @@ function NetworkDispatcher.initialize(services: any, domains: any, FrameworkComm
 			if metadata and type(metadata.timeoutMs) == "number" then
 				timeoutMs = math.clamp(metadata.timeoutMs, 1, 120000)
 			end
-			local startedAt = os.clock()
-
-			local function hasTimedOut(): boolean
-				if not timeoutMs then
-					return false
-				end
-				return ((os.clock() - startedAt) * 1000) >= timeoutMs
-			end
-
-			return {
+			return setmetatable({
 				player = player,
 				scope = scopeName,
 				method = methodName,
 				metadata = metadata,
 				timeoutMs = timeoutMs,
-				elapsedMs = function()
-					return (os.clock() - startedAt) * 1000
-				end,
-				remainingMs = function()
-					if not timeoutMs then
-						return nil
-					end
-					return math.max(0, timeoutMs - ((os.clock() - startedAt) * 1000))
-				end,
-				isTimedOut = function()
-					return hasTimedOut()
-				end,
-				isCanceled = function()
-					if hasTimedOut() then
-						return true
-					end
-					if type(tokenId) ~= "string" or #tokenId == 0 then
-						return false
-					end
-					local bucket = cancelledRequestsByPlayer[player]
-					return bucket and bucket[tokenId] == true or false
-				end,
-				assertActive = function(selfRef)
-					if selfRef:isTimedOut() then
-						return false, FrameworkError.new(
-							FrameworkError.Codes.Timeout,
-							`Request timeout in {scopeName}.{methodName}`
-						)
-					end
-					if type(tokenId) == "string" and #tokenId > 0 then
-						local bucket = cancelledRequestsByPlayer[player]
-						if bucket and bucket[tokenId] == true then
-							bucket[tokenId] = nil
-							return false, FrameworkError.new(
-								FrameworkError.Codes.Canceled,
-								`Request canceled in {scopeName}.{methodName}`
-							)
-						end
-					end
-					return true, nil
-				end,
-				error = function(_, code: string, message: string, details: any?)
-					return FrameworkError.new(code, message, details)
-				end,
-				pushProgress = function(progressPayload: any)
-					if metadata == nil or type(metadata.requestId) ~= "string" then
-						return
-					end
-					local activeOk = true
-					if type(tokenId) == "string" and #tokenId > 0 then
-						local bucket = cancelledRequestsByPlayer[player]
-						if bucket and bucket[tokenId] == true then
-							activeOk = false
-						end
-					end
-					if not activeOk or hasTimedOut() then
-						return
-					end
-					signalEvent:FireClient(
-						player,
-						STREAM_SERVICE,
-						STREAM_PROGRESS_SIGNAL,
-						metadata.requestId,
-						progressPayload
-					)
-				end,
-			}
+				_startedAt = os.clock(),
+				_tokenId = tokenId,
+				_cancelledRequests = cancelledRequestsByPlayer,
+			}, RequestContext)
 		end
 		
 		-- Check if it's a domain call first
