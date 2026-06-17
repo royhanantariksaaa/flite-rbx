@@ -4,49 +4,32 @@
 	@module MapState
 	@within Flite
 
-	MapState
-	Per-player reactive state. Extends FrameworkSignal with value storage.
+	Per-player reactive state with sparse-set indexed storage.
+	Player keys use a dense array (O(1) access, cache-friendly iteration,
+	swap-remove on leave). Non-Player keys fall back to a hash table.
 
-	Inheritance:
-		FrameworkSignal (fire, fireClient, fireAllClients, connect, etc.)
-		`-- MapState (adds _value, _perPlayer, get/set/clear/observe)
-
-	The set/setFor methods store the value AND fire the inherited signal
-	methods to replicate to clients and notify server listeners.
-
-	Server API (inherited from FrameworkSignal):
-		state:fire(...)               -> notify server listeners only
-		state:fireClient(player, ...) -> fire to one client
-		state:connect(fn)             -> subscribe server-side
-
-	Server API (MapState-specific):
-		state:setDefault(value)          -- Set the fallback value for all missing keys
-		state:set(key, value)            -- Set custom value for one key (e.g. Player)
-		state:setFilter(predicate, val)  -- Set for keys matching predicate
-		state:get(key)                   -- Get current value for key
-		state:getEach()                  -- Returns an iterator for all keys and their values
-		state:clear(key)                 -- Clear a specific key
-		state:clearAll()                 -- Clear ALL keys
-		state:observe(key, fn)           -- Observe a specific key's value
-		state:destroy()                  -- Cleanup
+	Inherits FrameworkSignal: fire, fireClient, fireAllClients, connect, etc.
 ]=]
 
 local Players = game:GetService("Players")
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
 
--- Sentinel value for storing `nil` in the _perPlayer table
 local NONE = newproxy(false)
 
 local MapState = {}
 MapState.__index = MapState
 local warnedAliases = {}
 
+local function isPlayer(key: any): boolean
+	return typeof(key) == "Instance" and key:IsA("Player")
+end
+
 --[=[
 	Constructs a new MapState.
-	@param globalEvent   The shared RemoteEvent
-	@param serviceName   Owning service name (routing key)
-	@param fieldName     Field name (routing key, also used as signal name)
-	@param default       Default/initial value for all players
+	@param globalEvent The shared RemoteEvent
+	@param serviceName Owning service name (routing key)
+	@param fieldName Field name (routing key, also used as signal name)
+	@param default Default/initial value for all players
 ]=]
 function MapState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: string, default: any)
 	local self = setmetatable({}, MapState)
@@ -54,18 +37,61 @@ function MapState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: 
 	self.isState = true
 	self._replicateToClients = true
 	self._dispatcher = FrameworkSignal.new(globalEvent, serviceName, fieldName)
-	
-	-- MapState-specific: value storage
-	self._default = default           -- Initial value (used for client discovery)
-	self._value = default             -- Current top-level value
-	self._perPlayer = {}              -- Player -> value (or NONE for explicit nil)
 
-	-- Auto-cleanup per-player data when a player leaves
+	self._default = default
+	self._value = default
+
+	-- Sparse set for Player keys: dense array indexed by slot
+	self._playerSlots = {}   -- { [Player] -> slotId }
+	self._slotPlayers = {}   -- { [slotId] -> Player }
+	self._playerValues = {}  -- { [slotId] -> value | NONE }
+	self._slotCount = 0
+
+	-- Hash table for non-Player keys
+	self._customKeys = {}
+
+	-- Register existing + future players
+	for _, player in Players:GetPlayers() do
+		self:_registerPlayer(player)
+	end
+
+	self._playerAdded = Players.PlayerAdded:Connect(function(player)
+		self:_registerPlayer(player)
+	end)
+
 	self._playerRemoving = Players.PlayerRemoving:Connect(function(player)
-		self._perPlayer[player] = nil
+		self:_unregisterPlayer(player)
 	end)
 
 	return self
+end
+
+function MapState:_registerPlayer(player: Player)
+	local slot = self._slotCount + 1
+	self._slotCount = slot
+	self._playerSlots[player] = slot
+	self._slotPlayers[slot] = player
+	-- _playerValues[slot] stays nil = "not set" → returns default
+end
+
+function MapState:_unregisterPlayer(player: Player)
+	local slot = self._playerSlots[player]
+	if not slot then return end
+
+	self._playerSlots[player] = nil
+	local lastSlot = self._slotCount
+
+	if slot ~= lastSlot then
+		-- Swap-remove: move last slot's data into freed slot
+		local lastPlayer = self._slotPlayers[lastSlot]
+		self._playerSlots[lastPlayer] = slot
+		self._slotPlayers[slot] = lastPlayer
+		self._playerValues[slot] = self._playerValues[lastSlot]
+	end
+
+	self._slotPlayers[lastSlot] = nil
+	self._playerValues[lastSlot] = nil
+	self._slotCount = lastSlot - 1
 end
 
 -- Setters
@@ -73,13 +99,16 @@ end
 function MapState:setDefault(value: any)
 	local oldValue = self._value
 	self._value = value
-	-- Replicate only to clients that don't have a per-player override
-	local Players = game:GetService("Players")
-	for _, player in Players:GetPlayers() do
-		if self._perPlayer[player] == nil then
-			self._dispatcher:fireClient(player, value)
+
+	-- Replicate only to players without an explicit override
+	local playerValues = self._playerValues
+	local slotPlayers = self._slotPlayers
+	for slot = 1, self._slotCount do
+		if playerValues[slot] == nil then
+			self._dispatcher:fireClient(slotPlayers[slot], value)
 		end
 	end
+
 	if oldValue ~= value then
 		self._dispatcher:fire(value, oldValue, nil)
 	end
@@ -88,33 +117,30 @@ end
 --[=[ Set a custom value for a specific key (e.g. Player). ]=]
 function MapState:set(key: any, value: any)
 	local oldValue = self:get(key)
-	
-	-- We still need to support instances like Player objects
-	self._perPlayer[key] = if value == nil then NONE else value
-	
-	if typeof(key) == "Instance" and key:IsA("Player") then
+
+	if isPlayer(key) then
+		local slot = self._playerSlots[key]
+		if not slot then
+			self:_registerPlayer(key)
+			slot = self._playerSlots[key]
+		end
+		self._playerValues[slot] = if value == nil then NONE else value
 		self._dispatcher:fireClient(key, value)
+	else
+		self._customKeys[key] = if value == nil then NONE else value
 	end
-	
+
 	if oldValue ~= value then
 		self._dispatcher:fire(value, oldValue, key)
 	end
 end
 
 local function warnDeprecated(aliasName: string)
-	if warnedAliases[aliasName] then
-		return
-	end
+	if warnedAliases[aliasName] then return end
 	warnedAliases[aliasName] = true
 	warn(`[Framework] MapState:{aliasName} is deprecated. Use MapState:set/get/clear instead.`)
 end
 
---[=[
-	Sets the value stored for a map key and replicates the change.
-	@param key key: any
-	@param value value: any
-	@return nil
-]=]
 function MapState:setFor(key: any, value: any)
 	warnDeprecated("setFor")
 	self:set(key, value)
@@ -132,23 +158,26 @@ end
 -- Clearing
 --[=[ Clear a specific key. It reverts to the fallback default. ]=]
 function MapState:clear(key: any)
-	if self._perPlayer[key] == nil then return end
-	local oldValue = self:get(key)
-	self._perPlayer[key] = nil
-	
-	if typeof(key) == "Instance" and key:IsA("Player") then
+	if isPlayer(key) then
+		local slot = self._playerSlots[key]
+		if not slot then return end
+		if self._playerValues[slot] == nil then return end
+		local oldValue = self:get(key)
+		self._playerValues[slot] = nil
 		self._dispatcher:fireClient(key, self._value)
-	end
-	
-	if oldValue ~= self._value then
-		self._dispatcher:fire(self._value, oldValue, key)
+		if oldValue ~= self._value then
+			self._dispatcher:fire(self._value, oldValue, key)
+		end
+	else
+		if self._customKeys[key] == nil then return end
+		local oldValue = self:get(key)
+		self._customKeys[key] = nil
+		if oldValue ~= self._value then
+			self._dispatcher:fire(self._value, oldValue, key)
+		end
 	end
 end
 
---[=[
-	Clears the value stored for a map key and replicates the change.
-	@param key key: any
-]=]
 function MapState:clearFor(key: any)
 	warnDeprecated("clearFor")
 	self:clear(key)
@@ -156,8 +185,9 @@ end
 
 --[=[ Clear ALL keys. Everything reverts to the fallback default. ]=]
 function MapState:clearAll()
-	local hadKeys = next(self._perPlayer) ~= nil
-	table.clear(self._perPlayer)
+	local hadKeys = self._slotCount > 0 or next(self._customKeys) ~= nil
+	table.clear(self._playerValues)
+	table.clear(self._customKeys)
 	self._dispatcher:fireAllClients(self._value)
 	if hadKeys then
 		self._dispatcher:fire(self._value, nil, nil)
@@ -167,47 +197,65 @@ end
 -- Getters
 --[=[ Get the current value for a key. Returns the specific key value if set, else the fallback default. ]=]
 function MapState:get(key: any): any
-	local pv = self._perPlayer[key]
-	if pv == nil then return self._value end
-	if pv == NONE then return nil end
-	return pv
+	if isPlayer(key) then
+		local slot = self._playerSlots[key]
+		if not slot then return self._value end
+		local val = self._playerValues[slot]
+		if val == nil then return self._value end
+		if val == NONE then return nil end
+		return val
+	end
+	local val = self._customKeys[key]
+	if val == nil then return self._value end
+	if val == NONE then return nil end
+	return val
 end
 
---[=[
-	Reads the value for a specific key.
-	@param key Key used by this API.
-	@return any
-]=]
 function MapState:getFor(key: any): any
 	warnDeprecated("getFor")
 	return self:get(key)
 end
 
 -- Iteration & Observation
---[=[ Returns an iterable mapping of all active keys and their current values. ]=]
+--[=[ Returns an iterator over all keys with explicit overrides and their values. ]=]
 function MapState:getEach()
-	return function(_, k)
-		local nextKey, nextValue = next(self._perPlayer, k)
-		if nextKey ~= nil then
-			-- Map NONE to nil for correctness, though NONE should rarely be iterated
-			return nextKey, if nextValue == NONE then nil else nextValue
+	local slot = 0
+	local slotCount = self._slotCount
+	local slotPlayers = self._slotPlayers
+	local playerValues = self._playerValues
+	local customKeys = self._customKeys
+	local customKey = nil
+	local doingCustom = false
+
+	return function()
+		if not doingCustom then
+			while slot < slotCount do
+				slot += 1
+				local val = playerValues[slot]
+				if val ~= nil then
+					local player = slotPlayers[slot]
+					if val == NONE then val = nil end
+					return player, val
+				end
+			end
+			doingCustom = true
 		end
-		return nil, nil
-	end, self._perPlayer, nil
+		local key, rawVal = next(customKeys, customKey)
+		if key then
+			customKey = key
+			return key, if rawVal == NONE then nil else rawVal
+		end
+		return nil
+	end
 end
 
 --[=[ Observe a specific key's value. Fires immediately, then on changes.
-     Returns a cleanup function. ]=]
---[=[
-	Subscribes to value changes.
-	@param key Key used by this API.
-	@param callback Callback invoked by this API.
-]=]
+      Returns a cleanup function. ]=]
 function MapState:observe(key: any, callback: (any, any) -> ())
 	task.defer(callback, self:get(key), nil)
 	local lastValue = self:get(key)
 
-	local connection = self._dispatcher:connect(function(_ : any, _ : any, changedKey: any)
+	local connection = self._dispatcher:connect(function(_: any, _: any, changedKey: any)
 		if changedKey == nil or changedKey == key then
 			local currentValue = self:get(key)
 			if currentValue ~= lastValue then
@@ -224,10 +272,15 @@ function MapState:observe(key: any, callback: (any, any) -> ())
 end
 
 -- Cleanup
---[=[ Destroy the MapState. Cleans up connections and the inherited signal. ]=]
+--[=[ Destroy the MapState. Cleans up connections, slots, and the inherited signal. ]=]
 function MapState:destroy()
+	self._playerAdded:Disconnect()
 	self._playerRemoving:Disconnect()
-	table.clear(self._perPlayer)
+	table.clear(self._playerSlots)
+	table.clear(self._slotPlayers)
+	table.clear(self._playerValues)
+	table.clear(self._customKeys)
+	self._slotCount = 0
 	self._dispatcher:destroy()
 end
 
