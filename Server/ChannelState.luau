@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module ChannelState
+	@within Flite
+
 	ChannelState
 	Targeted reactive state. Replicates a value only to specific subscribed players.
 
@@ -10,16 +13,16 @@
 		state:get()                      -- Get current value on server
 		state:observe(fn)                -- Observe changes on server
 		state:destroy()                  -- Cleanup
-]]
+]=]
 
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
 
 local ChannelState = {}
 ChannelState.__index = ChannelState
 
---[[
+--[=[
 	Constructs a new ChannelState.
-]]
+]=]
 function ChannelState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: string, default: any)
 	local self = setmetatable({}, ChannelState)
 
@@ -38,7 +41,7 @@ function ChannelState.new(globalEvent: RemoteEvent, serviceName: string, fieldNa
 	return self
 end
 
---[[ Subscribe a player to receive updates for this state. Also sends them the current value immediately. ]]
+--[=[ Subscribe a player to receive updates for this state. Also sends them the current value immediately. ]=]
 function ChannelState:subscribe(player: Player)
 	if not self._subscribers[player] then
 		self._subscribers[player] = true
@@ -46,12 +49,12 @@ function ChannelState:subscribe(player: Player)
 	end
 end
 
---[[ Unsubscribe a player from receiving updates for this state. ]]
+--[=[ Unsubscribe a player from receiving updates for this state. ]=]
 function ChannelState:unsubscribe(player: Player)
 	self._subscribers[player] = nil
 end
 
---[[ Returns an array of currently subscribed players. ]]
+--[=[ Returns an array of currently subscribed players. ]=]
 function ChannelState:getSubscribers(): { Player }
 	local list = {}
 	for player, _ in pairs(self._subscribers) do
@@ -64,7 +67,7 @@ function ChannelState:getSubscribers(): { Player }
 	return list
 end
 
---[[ Set the value. Replicates ONLY to subscribed clients. ]]
+--[=[ Set the value. Replicates ONLY to subscribed clients. ]=]
 function ChannelState:set(value: any)
 	local oldValue = self._value
 	self._value = value
@@ -84,7 +87,7 @@ function ChannelState:set(value: any)
 	end
 end
 
---[[ Get the current value. If requested by a client, verify subscription or return fallback. ]]
+--[=[ Get the current value. If requested by a client, verify subscription or return fallback. ]=]
 function ChannelState:get(player: Player?): any
 	if player and typeof(player) == "Instance" and player:IsA("Player") then
 		if not self._subscribers[player] then
@@ -94,7 +97,7 @@ function ChannelState:get(player: Player?): any
 	return self._value
 end
 
---[[ Like connect(), but fires immediately with the current value. ]]
+--[=[ Like connect(), but fires immediately with the current value. ]=]
 function ChannelState:observe(callback: (any, any) -> ())
 	task.defer(callback, self._value, nil)
 	local connection = self._dispatcher:connect(function(value, oldValue)
@@ -105,7 +108,7 @@ function ChannelState:observe(callback: (any, any) -> ())
 	end
 end
 
---[[ Destroy the ChannelState. ]]
+--[=[ Destroy the ChannelState. ]=]
 function ChannelState:destroy()
 	if self._playerRemoving then
 		self._playerRemoving:Disconnect()

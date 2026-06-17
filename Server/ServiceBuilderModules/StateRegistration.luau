@@ -1,3 +1,10 @@
+--[=[
+	@module StateRegistration
+	@within Flite
+
+	Binds server state constructors onto service contexts.
+]=]
+
 local MapState = require(script.Parent.Parent.MapState)
 local ValueState = require(script.Parent.Parent.ValueState)
 local ChannelState = require(script.Parent.Parent.ChannelState)
@@ -6,6 +13,11 @@ local GlobalValueState = require(script.Parent.Parent.GlobalValueState)
 
 local StateRegistration = {}
 
+--[=[
+	Installs state registration methods on a service builder context.
+	@param context context: any
+	@param config config: any
+]=]
 function StateRegistration.bind(context: any, config: any)
 	local function registerState(
 		selfRef: any,

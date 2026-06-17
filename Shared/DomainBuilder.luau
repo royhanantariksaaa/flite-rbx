@@ -1,23 +1,26 @@
---[[
+--[=[
+	@module DomainBuilder
+	@within Flite
+
 	DomainBuilder (Shared)
 	Constructs "Domains" - pure logic modules that run exactly the same 
 	on both the Server and the Client.
 	
 	Crucially, a Domain CANNOT depend on Server Services or Client Controllers.
 	It can only depend on other shared Domains.
-]]
+]=]
 
 local DependencyProxy = require(script.Parent.DependencyProxy)
 local HookRegistration = require(script.Parent.HookRegistration)
 local DomainBuilder = {}
 
---[[
+--[=[
 	Build a new Domain from a setup function.
 	@param name               Domain name (e.g. "CombatDomain")
 	@param getDomainFn        Callback to lazily fetch other Domains
 	@param setupFn            Setup function that receives a context
 	@return domain            The finalized domain table
-]]
+]=]
 function DomainBuilder.build(name: string, getDomainFn: (string) -> any, setupFn: (context: any) -> ())
 	local context = {
 		_dependencies = {},
@@ -25,9 +28,9 @@ function DomainBuilder.build(name: string, getDomainFn: (string) -> any, setupFn
 		_cleanupCallbacks = {}
 	}
 	
-	--[[
+	--[=[
 		Declare a dependency on another Domain.
-	]]
+	]=]
 	function context:useDependency(domainName: string)
 		if not table.find(self._dependencies, domainName) then
 			table.insert(self._dependencies, domainName)
@@ -40,11 +43,11 @@ function DomainBuilder.build(name: string, getDomainFn: (string) -> any, setupFn
 		)
 	end
 	
-	--[[
+	--[=[
 		Expose a method on the Domain.
 		On the Server, these are callable directly.
 		On the Client, these execute optimistically and then dispatch silently to the Server.
-	]]
+	]=]
 	function context:expose(methodName: string, configOrFn: any, fn: any?)
 		local conf
 		local callback
@@ -68,10 +71,9 @@ function DomainBuilder.build(name: string, getDomainFn: (string) -> any, setupFn
 		table.insert(context._cleanupCallbacks, fn)
 	end)
 	
-	-- ── Run the setup function ─────────────────────────
+	-- Run the setup function
 	setupFn(context)
-	-- ── Build the final domain table ───────────────────
-	
+	-- Build the final domain table
 	local domain = { Name = name }
 	domain._dependencies = context._dependencies
 	domain._exposedMethods = context._exposedMethods

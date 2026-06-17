@@ -1,10 +1,19 @@
---[[
+--[=[
+	@module DependencySorter
+	@within Flite
+
 	DependencySorter
 	Reusable topological sorter for framework registries (services/controllers/domains).
-]]
+]=]
 
 local DependencySorter = {}
 
+--[=[
+	Sorts dependency-aware nodes so dependencies initialize before dependents.
+	@param nodesByName nodesByName: any
+	@param getDependencies Optional callback that returns dependency names for a node.
+	@return { any }
+]=]
 function DependencySorter.sort(nodesByName: any, getDependencies: (any) -> { string }?, nodeKind: string?): { any }
 	local sorted = {}
 	local visited = {}

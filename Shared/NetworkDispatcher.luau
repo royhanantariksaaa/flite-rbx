@@ -1,8 +1,11 @@
---[[
+--[=[
+	@module NetworkDispatcher
+	@within Flite
+
 	NetworkDispatcher
 	Centralizes identical server-side logic for Buffer payloads and request validation.
 	Handles wiring up the global StateEvent, SignalEvent, and MethodEvent routing.
-]]
+]=]
 
 local BufferCodec = require(script.Parent.BufferCodec)
 local RequestValidator = require(script.Parent.RequestValidator)
@@ -15,12 +18,12 @@ local STREAM_SERVICE = "__FrameworkStream"
 local STREAM_PROGRESS_SIGNAL = "Progress"
 local BUFFER_RETURN_TAG = "__frameworkBufferReturn"
 
---[[
+--[=[
 	Initializes the global remote event listeners.
 	@param services Reference to the server's `services` cache
 	@param domains Reference to the shared `domains` cache
 	@param FrameworkComm The global networking folder
-]]
+]=]
 function NetworkDispatcher.initialize(services: any, domains: any, FrameworkComm: Folder)
 	local Players = game:GetService("Players")
 	local stateEvent: RemoteEvent = FrameworkComm:FindFirstChild("StateEvent") :: RemoteEvent

@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module DataStoreWrapper
+	@within Flite
+
 	DataStoreWrapper
 	Lean session-based DataStore wrapper for Flite persistence.
 
@@ -23,15 +26,14 @@
 		data.Coins = 100
 		DB.update(store, "12345", function(d) d.Coins = 200; return d end)
 		DB.stopSession(store, "12345")
-]]
+]=]
 
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 
 local DataStoreWrapper = {}
 
--- ── Studio mock fallback ───────────────────────────────
-
+-- Studio mock fallback
 local function getRealDataStore(name: string, scope: string?): DataStore
 	return DataStoreService:GetDataStore(name, scope)
 end
@@ -40,14 +42,30 @@ local function getMockDataStore(name: string, scope: string?): DataStore
 	local mock = {}
 	local store = {}
 
+--[=[
+	Reads a value from the in-memory DataStore fallback.
+	@param key key
+	@return any
+]=]
 	function mock:GetAsync(key)
 		return store[key]
 	end
 
+--[=[
+	Writes a value to the in-memory DataStore fallback.
+	@param key key
+	@param value value
+]=]
 	function mock:SetAsync(key, value)
 		store[key] = value
 	end
 
+--[=[
+	Updates a value in the in-memory DataStore fallback with a transform callback.
+	@param key key
+	@param transformFn transformFn
+	@return any
+]=]
 	function mock:UpdateAsync(key, transformFn)
 		local current = store[key]
 		local new = transformFn(current, nil)
@@ -58,6 +76,10 @@ local function getMockDataStore(name: string, scope: string?): DataStore
 		return new
 	end
 
+--[=[
+	Removes a value from the in-memory DataStore fallback.
+	@param key key
+]=]
 	function mock:RemoveAsync(key)
 		local val = store[key]
 		store[key] = nil
@@ -78,8 +100,7 @@ else
 	getDataStore = getRealDataStore
 end
 
--- ── DataStore helpers with retry ───────────────────────
-
+-- DataStore helpers with retry
 local function dsGetAsync(datastore: DataStore, key: string): (boolean, any)
 	local success, result = pcall(datastore.GetAsync, datastore, key)
 	if success then
@@ -108,8 +129,7 @@ local function dsUpdateAsync(datastore: DataStore, key: string, transformFn: (an
 	return false, nil, nil
 end
 
--- ── Schema migrations ──────────────────────────────────
-
+-- Schema migrations
 local function migrateData(schema: { Initial: any, Migrations: { (any) -> any } }, data: any, currentVersion: number): any?
 	if data == nil then
 		return nil
@@ -127,8 +147,7 @@ local function migrateData(schema: { Initial: any, Migrations: { (any) -> any } 
 	return data
 end
 
--- ── Deep equality (for dirty tracking) ─────────────────
-
+-- Deep equality (for dirty tracking)
 local function deepEqual(a: any, b: any): boolean
 	if a == b then
 		return true
@@ -165,8 +184,7 @@ local function deepClone(t: any): any
 	return clone
 end
 
--- ── Store type ─────────────────────────────────────────
-
+-- Store type
 export type Store = {
 	Source: DataStore,
 	Schema: { Initial: any, Migrations: { (any) -> any } },
@@ -185,11 +203,13 @@ export type Store = {
 	_flushAlive: boolean,
 }
 
--- ── Public API ─────────────────────────────────────────
-
---[[
+-- Public API
+--[=[
 	Create a store with schema and optional migrations.
-]]
+
+	@param opts { Name: string, Scope: string?, Schema: any, FlushInterval: number? } -- store configuration
+	@return Store -- session-aware DataStore wrapper
+]=]
 function DataStoreWrapper.createStore(opts: {
 	Name: string,
 	Scope: string?,
@@ -233,13 +253,23 @@ function DataStoreWrapper.createStore(opts: {
 	return store
 end
 
---[[
+--[=[
 	Load data from DataStore, apply migrations, cache it, and return it directly.
 	Returns the cached data table. If the key has no data, returns a clone of
 	Schema.Initial.
 
 	This replaces: drop.StartSession + drop.WaitForSession + drop.View
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+	@return { [string]: any } -- cached mutable session data
+]=]
+--[=[
+	Starts or resumes a simple session payload for a DataStore key.
+	@param store store: Store
+	@param key key: string
+	@return { [string]: any }
+]=]
 function DataStoreWrapper.startSession(store: Store, key: string): { [string]: any }
 	if store._sessions[key] then
 		return store._sessions[key].data
@@ -275,9 +305,13 @@ function DataStoreWrapper.startSession(store: Store, key: string): { [string]: a
 	return session.data
 end
 
---[[
+--[=[
 	Get the current cached session data. Returns nil if no active session.
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+	@return { [string]: any }? -- cached session data, if active
+]=]
 function DataStoreWrapper.getSessionData(store: Store, key: string): { [string]: any }?
 	local session = store._sessions[key]
 	if session then
@@ -286,10 +320,14 @@ function DataStoreWrapper.getSessionData(store: Store, key: string): { [string]:
 	return nil
 end
 
---[[
+--[=[
 	Update cached data with a transform function. Marks the session as dirty.
 	Calls observers after the update.
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+	@param transformFn (any) -> any? -- receives cloned data and returns replacement data
+]=]
 function DataStoreWrapper.update(store: Store, key: string, transformFn: (any) -> any?)
 	local session = store._sessions[key]
 	if not session then
@@ -312,9 +350,14 @@ function DataStoreWrapper.update(store: Store, key: string, transformFn: (any) -
 	end
 end
 
---[[
+--[=[
 	Observe changes to session data. Callback fires on each update.
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+	@param callback (any, any) -> () -- receives new and old data
+	@return () -> () -- disconnect function
+]=]
 function DataStoreWrapper.observe(store: Store, key: string, callback: (newData: any, oldData: any) -> ()): () -> ()
 	local session = store._sessions[key]
 	if not session then
@@ -333,10 +376,14 @@ function DataStoreWrapper.observe(store: Store, key: string, callback: (newData:
 	end
 end
 
---[[
+--[=[
 	Flush dirty data to DataStore. Does not end the session.
 	Returns true if flushed or no changes, false if write failed.
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+	@return boolean -- true when data is clean or saved successfully
+]=]
 function DataStoreWrapper.flush(store: Store, key: string): boolean
 	local session = store._sessions[key]
 	if not session then
@@ -364,9 +411,12 @@ function DataStoreWrapper.flush(store: Store, key: string): boolean
 	return success
 end
 
---[[
+--[=[
 	Flush dirty data and end the session.
-]]
+
+	@param store Store -- store returned by `createStore`
+	@param key string -- session key
+]=]
 function DataStoreWrapper.stopSession(store: Store, key: string)
 	local session = store._sessions[key]
 	if not session then

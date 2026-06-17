@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module FrameworkBootstrap
+	@within Flite
+
 	FrameworkBootstrap
 	Handles FrameworkComm creation and runtime listener wiring.
-]]
+]=]
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +30,10 @@ local function setClientStateValue(stateValue: any, newValue: any): boolean
 	return false
 end
 
+--[=[
+	Ensures the shared FrameworkComm folder and network remotes exist.
+	@return Folder
+]=]
 function FrameworkBootstrap.ensureFrameworkComm(): Folder
 	local frameworkComm = ReplicatedStorage:FindFirstChild("FrameworkComm")
 	if RunService:IsServer() and not frameworkComm then
@@ -60,14 +67,30 @@ function FrameworkBootstrap.ensureFrameworkComm(): Folder
 	return frameworkComm
 end
 
+--[=[
+	Attaches server-side network handlers for services and domains.
+	@param services services: any
+	@param domains domains: any
+	@param frameworkComm frameworkComm: Folder
+]=]
 function FrameworkBootstrap.attachServerNetwork(services: any, domains: any, frameworkComm: Folder)
 	return NetworkDispatcher.initialize(services, domains, frameworkComm)
 end
 
+--[=[
+	Stores whether clients should rely on compact manifest metadata.
+	@param frameworkComm frameworkComm: Folder
+	@param manifestOnly manifestOnly: boolean?
+]=]
 function FrameworkBootstrap.setManifestMode(frameworkComm: Folder, manifestOnly: boolean?)
 	frameworkComm:SetAttribute("_manifestOnly", manifestOnly == true)
 end
 
+--[=[
+	Attaches client-side listeners that route replicated state and signal traffic.
+	@param services services: any
+	@param frameworkComm frameworkComm: Folder
+]=]
 function FrameworkBootstrap.attachClientListeners(services: any, frameworkComm: Folder)
 	local ServiceProxy = require(script.Parent.Parent.Client.ServiceProxy)
 	local stateEvent = frameworkComm:WaitForChild("StateEvent") :: RemoteEvent

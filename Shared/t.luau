@@ -1,16 +1,16 @@
---[[
-	Weave Framework v2.0
-	t.luau
-	
+--[=[
+	@module t
+	@within Flite
+
 	Strict schema validator and binary Buffer serialization library.
 	Supports generating primitive generic types, struct mapping, and Roblox primitives.
-	
+
 	Every schema object returns:
 		schema.validate(value) -> boolean
 		schema.getSize(value) -> number (bytes)
 		schema.pack(buffer, cursor, value, instances) -> newCursor
 		schema.unpack(buffer, cursor, instances) -> (value, newCursor)
-]]
+]=]
 
 local t = {}
 
@@ -230,7 +230,12 @@ t.instance = {
 	end,
 }
 
--- Returns a schema validating a specific Roblox ClassName
+--[=[
+	Create a schema that validates and packs an Instance of a specific class.
+
+	@param className string -- Roblox class name accepted by `Instance:IsA`
+	@return any -- instance schema
+]=]
 function t.instanceOf(className: string)
 	return {
 		name = "instance",
@@ -246,6 +251,12 @@ end
 -- STRUCTURE COMPOSERS
 -- ============================================================================
 
+--[=[
+	Create a schema that accepts `nil` or a value matching the inner schema.
+
+	@param schema any -- schema used when a value is present
+	@return any -- optional schema
+]=]
 function t.optional(schema)
 	return {
 		name = schema.name and ("optional_" .. schema.name) or "optional",
@@ -278,6 +289,12 @@ function t.optional(schema)
 	}
 end
 
+--[=[
+	Create an array schema with homogeneous element values.
+
+	@param elementSchema any -- schema used for each array item
+	@return any -- array schema
+]=]
 function t.array(elementSchema)
 	return {
 		name = elementSchema.name and ("array_" .. elementSchema.name) or "array",
@@ -323,6 +340,12 @@ function t.array(elementSchema)
 	}
 end
 
+--[=[
+	Create a deterministic struct schema from named fields.
+
+	@param template { [string]: any } -- field schemas keyed by field name
+	@return any -- struct schema
+]=]
 function t.struct(template)
 	-- Pre-sort keys so serialization is deterministic
 	local keys = {}
@@ -373,6 +396,13 @@ function t.struct(template)
 	}
 end
 
+--[=[
+	Create a map schema with homogeneous key and value schemas.
+
+	@param keySchema any -- schema used for each key
+	@param valSchema any -- schema used for each value
+	@return any -- map schema
+]=]
 function t.map(keySchema, valSchema)
 	return {
 		name = "map",
@@ -446,6 +476,11 @@ local PlayerRegistry = {
 }
 
 if IS_SERVER then
+--[=[
+	Assigns or returns a compact numeric id for a Player.
+	@param player player: Player
+	@return number
+]=]
 	function PlayerRegistry.assignId(player: Player)
 		local id = table.remove(PlayerRegistry._freeIds) or PlayerRegistry._nextId
 		if not PlayerRegistry._freeIds[1] then PlayerRegistry._nextId += 1 end
@@ -471,6 +506,11 @@ if IS_SERVER then
 	end)
 end
 
+--[=[
+	Returns the Player associated with a compact numeric id.
+	@param id id: number
+	@return Player?
+]=]
 function PlayerRegistry.getPlayer(id: number): Player?
 	if IS_SERVER then return PlayerRegistry._idToPlayer[id] end
 	for _, player in game:GetService("Players"):GetPlayers() do
@@ -509,7 +549,12 @@ local function getOptimalIntType(range: number, precision: number): (string, num
 	end
 end
 
--- Packs up to 8 booleans securely into 1 byte.
+--[=[
+	Create a schema that packs named boolean flags into a single byte.
+
+	@param flags { [string]: number } -- flag names mapped to bit indexes
+	@return any -- bitfield schema
+]=]
 function t.bitfield(flags)
 	return {
 		name = "bitfield",
@@ -537,7 +582,14 @@ function t.bitfield(flags)
 	}
 end
 
--- Reduces Vector3 12 byte footprint down to [3, 6, 12] depending on precision bounds.
+--[=[
+	Create a Vector3 schema that quantizes components according to precision
+	and range, reducing payload size when possible.
+
+	@param precision number -- world-unit precision step
+	@param range number -- maximum absolute component range
+	@return any -- quantized Vector3 schema
+]=]
 function t.quantized_vec3(precision: number, range: number)
 	local intType, bytesComp = getOptimalIntType(range, precision)
 	local size = bytesComp * 3
@@ -604,6 +656,11 @@ end
 --
 local StringRegistry = { _registries = {} }
 
+--[=[
+	Returns the named string registry, creating it when needed.
+	@param name name: string
+	@return any
+]=]
 function StringRegistry.getRegistry(name: string)
 	if not StringRegistry._registries[name] then
 		StringRegistry._registries[name] = { idToStr = {}, strToId = {}, nId = 0 }
@@ -611,6 +668,12 @@ function StringRegistry.getRegistry(name: string)
 	return StringRegistry._registries[name]
 end
 
+--[=[
+	Returns the numeric id associated with a registered string.
+	@param name name: string
+	@param str str: string
+	@return number?
+]=]
 function StringRegistry.getId(name: string, str: string)
 	local r = StringRegistry.getRegistry(name)
 	if r.strToId[str] then return r.strToId[str] end
@@ -621,10 +684,24 @@ function StringRegistry.getId(name: string, str: string)
 end
 
 -- Pre-register a string to ensure deterministic ID assignment
+--[=[
+	Registers a string in a named registry and returns its numeric id.
+	@param name name: string
+	@param str str: string
+	@return number
+]=]
 function StringRegistry.register(name: string, str: string)
 	StringRegistry.getId(name, str)
 end
 
+--[=[
+	Create a schema that packs strings by registry id. Registries are local to
+	the runtime, so cross-network usage requires deterministic pre-registration
+	on both server and client.
+
+	@param registryName string -- name of the string registry
+	@return any -- interned string schema with a `register(str)` helper
+]=]
 function t.intern(registryName: string)
 	return {
 		name = "intern",
@@ -651,6 +728,12 @@ function t.intern(registryName: string)
 	}
 end
 
+--[=[
+	Serialize a schema definition into a transportable descriptor.
+
+	@param schema any -- schema created by this module
+	@return any -- descriptor usable with `t.load`, or nil for unknown schemas
+]=]
 function t.dump(schema: any): any
 	if type(schema) == "table" and schema._def then
 		return schema._def
@@ -658,6 +741,12 @@ function t.dump(schema: any): any
 	return nil
 end
 
+--[=[
+	Recreate a schema from a descriptor produced by `t.dump`.
+
+	@param def any -- schema descriptor
+	@return any -- recreated schema, or nil if unsupported
+]=]
 function t.load(def: any): any
 	if type(def) == "string" then
 		return t[def]

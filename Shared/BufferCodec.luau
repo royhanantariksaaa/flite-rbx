@@ -1,18 +1,28 @@
---[[
-	Weave Framework
-	BufferCodec.luau
-	
-	Responsible for taking a payload of arguments `...`, matching them to an array of 
-	`t` schema validators defined in `config.args`, and dynamically allocating 
-	a pure Luau buffer that spans the entire byte-size of the payload!
-]]
+--[=[
+	@module BufferCodec
+	@within Flite
+
+	Responsible for taking a payload of arguments `...`, matching them to an
+	array of `t` schema validators defined in `config.args`, and dynamically
+	allocating a pure Luau buffer that spans the entire byte-size of the payload.
+]=]
 
 local BufferCodec = {}
 
---[[
+--[=[
 	Compresses an arbitrary list of arguments into a unified Buffer and Instance Array.
 	Returns (buf, inst_array)
-]]
+
+	@param schemas { any } -- ordered `t` schemas matching the argument list
+	@param ... any -- values to serialize
+	@return buffer -- packed binary payload
+	@return { Instance } -- side-channel instance references
+]=]
+--[=[
+	Serializes schema-backed values into a buffer payload and Instance side table.
+	@param schemas schemas: {any}
+	@return (buffer, { Instance })
+]=]
 function BufferCodec.serialize(schemas: {any}, ...: any): (buffer, {Instance})
 	local args = table.pack(...)
 	local totalSize = 0
@@ -48,10 +58,22 @@ function BufferCodec.serialize(schemas: {any}, ...: any): (buffer, {Instance})
 	return buf, inst_array
 end
 
---[[
+--[=[
 	Decompresses a unified Buffer + Instance Array back into a table of native Lua arguments.
 	Returns an array of reconstructed arguments.
-]]
+
+	@param schemas { any } -- ordered `t` schemas used to unpack the payload
+	@param buf buffer -- packed binary payload
+	@param inst_array { Instance } -- side-channel instance references
+	@return { any } -- reconstructed arguments with `n` set to schema count
+]=]
+--[=[
+	Deserializes a buffer payload and Instance side table into Luau values.
+	@param schemas schemas: {any}
+	@param buf buf: buffer
+	@param inst_array inst_array: {Instance}
+	@return { any }
+]=]
 function BufferCodec.deserialize(schemas: {any}, buf: buffer, inst_array: {Instance}): {any}
 	local results = table.create(#schemas)
 	local cursor = 0

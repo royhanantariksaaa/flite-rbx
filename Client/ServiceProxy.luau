@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module ServiceProxy
+	@within Flite
+
 	ServiceProxy
 	Client-side proxy returned by scope:useService().
-]]
+]=]
 
 local ClientSignalProxy = require(script.Parent.ClientSignalProxy)
 local BufferCodec = require(script.Parent.Parent.Shared.BufferCodec)
@@ -58,6 +61,11 @@ local function withProgress(promiseObj: any, attachFn: (callback: (any) -> ()) -
 	end
 
 	local wrapper = {}
+	--[=[
+	Registers a progress callback on a wrapped Promise-like request.
+	@param callback Receives progress payloads for the in-flight request.
+	@return self
+]=]
 	function wrapper:onProgress(callback)
 		if type(callback) == "function" then
 			attachFn(callback)
@@ -80,6 +88,11 @@ local function withProgress(promiseObj: any, attachFn: (callback: (any) -> ()) -
 	return wrapper
 end
 
+--[=[
+	Dispatches streamed progress payloads to observers for an active request.
+	@param requestId requestId: string
+	@param payload payload: any
+]=]
 function ServiceProxy.dispatchStreamProgress(requestId: string, payload: any)
 	local observers = STREAM_PROGRESS_OBSERVERS[requestId]
 	if not observers then
@@ -91,6 +104,12 @@ function ServiceProxy.dispatchStreamProgress(requestId: string, payload: any)
 	end
 end
 
+--[=[
+	Registers a progress observer for a streamed request and returns a cleanup callback.
+	@param requestId requestId: string
+	@param callback Receives streamed progress payloads.
+	@return () -> ()
+]=]
 function ServiceProxy.registerStreamObserver(requestId: string, callback: (any) -> ())
 	local observers = STREAM_PROGRESS_OBSERVERS[requestId]
 	if not observers then
@@ -112,6 +131,25 @@ function ServiceProxy.registerStreamObserver(requestId: string, callback: (any) 
 	end
 end
 
+--[=[
+	Creates a client service proxy from replicated service metadata.
+	@param scope Weave scope that owns replicated state values.
+	@param serviceName Name of the service being proxied.
+	@param serviceFolder Replicated service metadata folder.
+	@param fieldDefaults Default state values by field name.
+	@param stateFields Replicated state field names.
+	@param signalNames Replicated signal names.
+	@param unreliableSignals Set of signal names that should use the unreliable remote.
+	@param methodNames Exposed service method names.
+	@param stateEvent RemoteEvent used for state replication.
+	@param signalEvent RemoteEvent used for reliable signals.
+	@param unreliableSignalEvent UnreliableRemoteEvent used for unreliable signals.
+	@param methodEvent RemoteFunction used for method calls.
+	@param signalSchemaDefs Optional signal argument schemas.
+	@param methodSchemaDefs Optional method argument schemas.
+	@param methodReturnSchemaDefs Optional method return schemas.
+	@return any
+]=]
 function ServiceProxy.new(
 	scope: any,
 	serviceName: string,
@@ -360,6 +398,9 @@ function ServiceProxy.new(
 		end,
 	})
 
+--[=[
+	Requests initial replicated state values for this service proxy.
+]=]
 	function proxy:_requestInitialValues()
 		for _, fieldName in fieldsToRequest do
 			stateEvent:FireServer(serviceName, fieldName)

@@ -1,3 +1,10 @@
+--[=[
+	@module MetadataPublisher
+	@within Flite
+
+	Publishes service metadata and schemas for client proxy discovery.
+]=]
+
 local SchemaPublisher = require(script.Parent.Parent.Parent.Shared.SchemaPublisher)
 local t = require(script.Parent.Parent.Parent.Shared.t)
 local HttpService = game:GetService("HttpService")
@@ -8,6 +15,14 @@ type PublishOptions = {
 	manifestOnly: boolean?,
 }
 
+--[=[
+	Publishes service metadata onto replicated Instances for client discovery.
+	@param serviceFolder serviceFolder: Folder
+	@param states states: any
+	@param signals signals: any
+	@param exposedMethods exposedMethods: any
+	@param options options: PublishOptions?
+]=]
 function MetadataPublisher.publish(serviceFolder: Folder, states: any, signals: any, exposedMethods: any, options: PublishOptions?)
 	local publishOptions = options or {}
 	local manifestOnly = publishOptions.manifestOnly == true

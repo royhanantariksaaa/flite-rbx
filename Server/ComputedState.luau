@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module ComputedState
+	@within Flite
+
 	ComputedState
 	Derives a reactive value from one or more dependencies (ValueState or MapState).
 	It observes all dependencies and reruns the compute function when any change.
@@ -13,7 +16,7 @@
 		
 		totalLevel:get(player)
 		totalLevel:observe(player, fn)
-]]
+]=]
 
 local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
@@ -21,14 +24,14 @@ local FrameworkSignal = require(script.Parent.FrameworkSignal)
 local ComputedState = {}
 ComputedState.__index = ComputedState
 
---[[
+--[=[
 	Constructs a new ComputedState.
 	@param globalEvent  (Not strictly needed since computed state doesn't replicate directly, but kept for signature)
 	@param serviceName
 	@param fieldName
 	@param dependencies Array of state objects (ValueState, MapState, or other ComputedState)
 	@param computeFn    A function receiving all dependencies, returning either a scalar value OR a generator mapping `function(key) ... end`
-]]
+]=]
 function ComputedState.new(
 	globalEvent: RemoteEvent,
 	serviceName: string,
@@ -75,7 +78,7 @@ function ComputedState.new(
 	return self
 end
 
---[[ Internal wrapper to fetch scalar values or contextual map values ]]
+--[=[ Internal wrapper to fetch scalar values or contextual map values ]=]
 function ComputedState:_resolveGenerator(key: any)
 	local result = self._computeFn(table.unpack(self._dependencies))
 	if type(result) == "function" then
@@ -84,7 +87,7 @@ function ComputedState:_resolveGenerator(key: any)
 	return result
 end
 
---[[ Force recalculation and fire update signals ]]
+--[=[ Force recalculation and fire update signals ]=]
 function ComputedState:_recalculate(changedKey: any)
 	-- Ideally, this caches previous values per key and only fires if changed, 
 	-- but for simplicity, we instantly tell subscribers a dependency shifted.
@@ -99,12 +102,12 @@ function ComputedState:_recalculate(changedKey: any)
 	self._localSignal:fire(current, nil, changedKey)
 end
 
---[[ Get the current computed value for a key (or nil if global scalar) ]]
+--[=[ Get the current computed value for a key (or nil if global scalar) ]=]
 function ComputedState:get(key: any?): any
 	return self:_resolveGenerator(key)
 end
 
---[[ Observe computed changes for a specific key (or global scalar) ]]
+--[=[ Observe computed changes for a specific key (or global scalar) ]=]
 function ComputedState:observe(key: any?, callback: (any, any) -> ())
 	task.defer(callback, self:get(key), nil)
 
@@ -125,6 +128,9 @@ function ComputedState:observe(key: any?, callback: (any, any) -> ())
 	end
 end
 
+--[=[
+	Disconnects computed-state subscriptions and releases local signal resources.
+]=]
 function ComputedState:destroy()
 	for _, conn in self._connections do
 		conn:disconnect()

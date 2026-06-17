@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module GlobalValueState
+	@within Flite
+
 	GlobalValueState
 	Synchronizes a single value across all servers in an experience using
 	MemoryStoreService (for atomic updates) and MessagingService (for fast replication).
@@ -9,7 +12,7 @@
 		state:update(transformFn) -- Atomic UpdateAsync wrapper
 		state:observe(fn)
 		state:destroy()
-]]
+]=]
 
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local MessagingService = game:GetService("MessagingService")
@@ -20,12 +23,12 @@ local FrameworkSignal = require(script.Parent.FrameworkSignal)
 local GlobalValueState = {}
 GlobalValueState.__index = GlobalValueState
 
---[[
+--[=[
 	Constructs a new GlobalValueState.
 	Because MemoryStore GetAsync yields, the value might take a few frames to populate.
 	@param name      Name of the global key.
 	@param default   Fallback value if the key does not exist yet.
-]]
+]=]
 function GlobalValueState.new(
 	globalEventOrName: RemoteEvent | string,
 	serviceNameOrDefault: string | any,
@@ -71,6 +74,10 @@ function GlobalValueState.new(
 	return self
 end
 
+--[=[
+	Applies a replicated global value locally and notifies observers.
+	@param newValue newValue: any
+]=]
 function GlobalValueState:_applyValue(newValue: any)
 	if self._value == newValue then
 		return
@@ -84,6 +91,9 @@ function GlobalValueState:_applyValue(newValue: any)
 	self._localSignal:fire(newValue, old)
 end
 
+--[=[
+	Loads the initial global value asynchronously from MemoryStore.
+]=]
 function GlobalValueState:_initialize()
 	task.spawn(function()
 		local success, result = pcall(function()
@@ -97,15 +107,23 @@ function GlobalValueState:_initialize()
 	end)
 end
 
+--[=[
+	Returns the current cached global value.
+	@return any
+]=]
 function GlobalValueState:get()
 	return self._value
 end
 
+--[=[
+	Writes a new value.
+	@param newValue Value to write.
+]=]
 function GlobalValueState:set(newValue: any)
 	return self:update(function() return newValue end)
 end
 
---[[ Function mapping to MemoryStore UpdateAsync ]]
+--[=[ Function mapping to MemoryStore UpdateAsync ]=]
 function GlobalValueState:update(transformFn: (any) -> any)
 	return Promise.new(function(resolve, reject)
 		task.spawn(function()
@@ -138,6 +156,11 @@ function GlobalValueState:update(transformFn: (any) -> any)
 	end)
 end
 
+--[=[
+	Subscribes to global value changes and immediately receives the current value.
+	@param callback Receives the new value and previous value.
+	@return () -> ()
+]=]
 function GlobalValueState:observe(callback: (any, any) -> ())
 	task.defer(callback, self._value, nil)
 	local connection = self._localSignal:connect(callback)
@@ -146,6 +169,9 @@ function GlobalValueState:observe(callback: (any, any) -> ())
 	end
 end
 
+--[=[
+	Disconnects global replication resources and local observers.
+]=]
 function GlobalValueState:destroy()
 	if self._subscription then
 		self._subscription:Disconnect()

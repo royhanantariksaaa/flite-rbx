@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module ScopeExtensions
+	@within Flite
+
 	ScopeExtensions
 	Adds composable hooks to a Weave scope for use inside Framework.createController.
 	All connections are automatically cleaned up when the scope is destroyed
@@ -12,7 +15,7 @@
 		scope:usePlayers(callback) -- Player join/leave observer
 		scope:useTheme(preset) -- Apply WeaveKit theme
 		scope:useWaitFor(bindableName, timeout) -- Wait for BindableEvent before proceeding
-]]
+]=]
 
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -192,10 +195,10 @@ local function observeCharacter(scope: any, player: Player, onAdded: (Model, Pla
 	end
 end
 
---[[
+--[=[
 	Bind all composable hooks onto a Weave scope.
 	@param scope  A Weave.Scope() instance
-]]
+]=]
 function ScopeExtensions.bind(scope: any)
 	scope.playerGui = resolvePlayerGui(nil)
 

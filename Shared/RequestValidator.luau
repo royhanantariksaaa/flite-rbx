@@ -1,8 +1,11 @@
---[[
+--[=[
+	@module RequestValidator
+	@within Flite
+
 	RequestValidator
 	Validates incoming client requests against exposing configurations.
 	Handles rate limiting, type checking/schema validation, and middleware execution.
-]]
+]=]
 
 local RequestValidator = {}
 local FrameworkError = require(script.Parent.FrameworkError)
@@ -195,15 +198,19 @@ local function getValidationReturns(config: any): any
 	return nil
 end
 
---[[
+--[=[
 	Validates a client request.
 	@param player The player making the request.
 	@param serviceName The name of the service or domain.
 	@param service The actual service/domain instance (for service-level middlewares).
 	@param entryName The name of the method or signal.
 	@param config The exposed configuration block.
+	@param metadata Optional framework metadata passed with the request.
+	@param requestContext Optional cancellation/timeout context.
 	@param ... The arguments passed by the client.
-]]
+	@return boolean
+	@return any?
+]=]
 function RequestValidator.validate(
 	player: Player,
 	serviceName: string,
@@ -295,6 +302,12 @@ function RequestValidator.validate(
 	return true, nil
 end
 
+--[=[
+	Validates method return values against configured return schemas.
+	@param serviceName serviceName: string
+	@param entryName entryName: string
+	@param config config: any
+]=]
 function RequestValidator.validateReturns(serviceName: string, entryName: string, config: any, ...: any): boolean
 	local returnValidators = getValidationReturns(config)
 	if not returnValidators then

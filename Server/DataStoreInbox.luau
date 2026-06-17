@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module DataStoreInbox
+	@within Flite
+
 	DataStoreInbox
 	Optional cross-server messaging for Flite persistence.
 
@@ -22,7 +25,7 @@
 		-- On session start:
 		Inbox.subscribe(inbox, "PlayerData", "12345")
 		Inbox.processasync(inbox, "PlayerData", "12345")
-]]
+]=]
 
 local HttpService = game:GetService("HttpService")
 local MessagingService = game:GetService("MessagingService")
@@ -31,8 +34,7 @@ local RunService = game:GetService("RunService")
 
 local DataStoreInbox = {}
 
--- ── Studio mock fallback ───────────────────────────────
-
+-- Studio mock fallback
 local function getRealDataStore(name: string, scope: string?): DataStore
 	return DataStoreService:GetDataStore(name, scope)
 end
@@ -41,14 +43,30 @@ local function getMockDataStore(name: string, scope: string?): DataStore
 	local mock = {}
 	local store = {}
 
+--[=[
+	Reads a value from the in-memory DataStore fallback.
+	@param key key
+	@return any
+]=]
 	function mock:GetAsync(key)
 		return store[key]
 	end
 
+--[=[
+	Writes a value to the in-memory DataStore fallback.
+	@param key key
+	@param value value
+]=]
 	function mock:SetAsync(key, value)
 		store[key] = value
 	end
 
+--[=[
+	Updates a value in the in-memory DataStore fallback with a transform callback.
+	@param key key
+	@param transformFn transformFn
+	@return any
+]=]
 	function mock:UpdateAsync(key, transformFn)
 		local current = store[key]
 		local new = transformFn(current, nil)
@@ -59,6 +77,10 @@ local function getMockDataStore(name: string, scope: string?): DataStore
 		return new
 	end
 
+--[=[
+	Removes a value from the in-memory DataStore fallback.
+	@param key key
+]=]
 	function mock:RemoveAsync(key)
 		local val = store[key]
 		store[key] = nil
@@ -79,8 +101,7 @@ else
 	getDataStore = getRealDataStore
 end
 
--- ── DataStore helpers ──────────────────────────────────
-
+-- DataStore helpers
 local function dsGetAsync(datastore: DataStore, key: string): (boolean, any)
 	local success, result = pcall(datastore.GetAsync, datastore, key)
 	if success then
@@ -109,8 +130,7 @@ local function dsUpdateAsync(datastore: DataStore, key: string, transformFn: (an
 	return false, nil, nil
 end
 
--- ── Types ──────────────────────────────────────────────
-
+-- Types
 export type Envelope = {
 	Id: string,
 	Kind: string,
@@ -131,8 +151,7 @@ export type InboxController = {
 	Processing: { [string]: boolean },
 }
 
--- ── Helpers ────────────────────────────────────────────
-
+-- Helpers
 local function emptyRecord(): InboxRecord
 	return { messages = {} }
 end
@@ -145,11 +164,10 @@ local function inboxKey(key: string): string
 	return `{key}_inbox`
 end
 
--- ── Public API ─────────────────────────────────────────
-
---[[
+-- Public API
+--[=[
 	Create a new InboxController for a store.
-]]
+]=]
 function DataStoreInbox.create(storeName: string, scope: string?): InboxController
 	local controller: InboxController = {
 		Source = getDataStore(storeName .. "__inbox", scope),
@@ -161,10 +179,10 @@ function DataStoreInbox.create(storeName: string, scope: string?): InboxControll
 	return controller
 end
 
---[[
+--[=[
 	Send a message to a target key's inbox. Cross-server safe.
 	Yields until the write completes.
-]]
+]=]
 function DataStoreInbox.sendasync(
 	controller: InboxController,
 	targetKey: string,
@@ -199,9 +217,9 @@ function DataStoreInbox.sendasync(
 	end)
 end
 
---[[
+--[=[
 	Register a handler for a message kind.
-]]
+]=]
 function DataStoreInbox.onMessage(controller: InboxController, kind: string, handler: (envelope: Envelope) -> ())
 	if controller.Handlers[kind] then
 		error(`Handler already registered for kind "{kind}"`)
@@ -210,10 +228,10 @@ function DataStoreInbox.onMessage(controller: InboxController, kind: string, han
 	controller.Handlers[kind] = handler
 end
 
---[[
+--[=[
 	Process all pending messages for a key.
 	Reads the inbox, invokes handlers, removes processed envelopes.
-]]
+]=]
 function DataStoreInbox.processasync(controller: InboxController, _storeName: string, key: string)
 	if controller.Processing[key] then
 		return
@@ -254,10 +272,10 @@ function DataStoreInbox.processasync(controller: InboxController, _storeName: st
 	controller.Processing[key] = nil
 end
 
---[[
+--[=[
 	Subscribe to MessagingService nudges for a key.
 	Call this when a session starts.
-]]
+]=]
 function DataStoreInbox.subscribe(controller: InboxController, storeName: string, key: string)
 	if controller.Subscriptions[key] then
 		return
@@ -275,10 +293,10 @@ function DataStoreInbox.subscribe(controller: InboxController, storeName: string
 	end
 end
 
---[[
+--[=[
 	Unsubscribe from MessagingService nudges for a key.
 	Call this when a session stops.
-]]
+]=]
 function DataStoreInbox.unsubscribe(controller: InboxController, key: string)
 	local connection = controller.Subscriptions[key]
 	if connection then

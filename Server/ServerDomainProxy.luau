@@ -1,12 +1,22 @@
---[[
+--[=[
+	@module ServerDomainProxy
+	@within Flite
+
 	ServerDomainProxy (Shared/Server logic)
 	Executes true authoritative Domain methods on the Server using 
 	the real Server `services` environment.
-]]
+]=]
 
 local ServerDomainProxy = {}
 local DomainBus = require(script.Parent.Parent.Shared.DomainBus)
 
+--[=[
+	Creates a server-side proxy used to call and observe a domain definition.
+	@param domainDef domainDef: any
+	@param getServiceFn Resolves service dependencies by name.
+	@param getDomainFn Resolves domain dependencies by name.
+	@return any
+]=]
 function ServerDomainProxy.new(domainDef: any, getServiceFn: (string) -> any, getDomainFn: (string) -> any)
 	local proxy = {}
 	
@@ -45,10 +55,21 @@ function ServerDomainProxy.new(domainDef: any, getServiceFn: (string) -> any, ge
 		end
 	end
 
+--[=[
+	Emits a local domain event to listeners on the client.
+	@param eventName eventName: string
+	@param payload payload: any?
+]=]
 	function proxy:emit(eventName: string, payload: any?)
 		DomainBus.emit(domainDef.Name, eventName, payload)
 	end
 
+--[=[
+	Subscribes to a local domain event.
+	@param eventName eventName: string
+	@param callback Receives the event payload.
+	@return () -> ()
+]=]
 	function proxy:on(eventName: string, callback: (any?) -> ())
 		return DomainBus.on(domainDef.Name, eventName, callback)
 	end

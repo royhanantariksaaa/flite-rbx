@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module PersistentBridge
+	@within Flite
+
 	PersistentBridge
 	Automatically syncs PlayerState fields with DataStoreWrapper sessions.
 
@@ -12,20 +15,20 @@
 
 	Usage (called internally by ServiceBuilder):
 		PersistentBridge.wire(service, { store = dataStore, fields = { "Coins", "Gems" } })
-]]
+]=]
 
 local Players = game:GetService("Players")
 local DataStoreWrapper = require(script.Parent.DataStoreWrapper)
 
 local PersistentBridge = {}
 
---[[
+--[=[
 	Wire up automatic persistence between PlayerState fields and a DataStoreWrapper store.
 	@param service             The service table (with PlayerState instances attached)
 	@param config              { store = DataStoreWrapper.Store, fields = { "fieldName1", ... } }
 	@param onPlayerReady       Optional callback: (service, player, data) -> called after data loads
 	@param onPlayerSessionEnd  Optional callback: (service, player, data, reason) -> called before session teardown
-]]
+]=]
 function PersistentBridge.wire(
 	service: any,
 	config: { store: any, fields: { string } },

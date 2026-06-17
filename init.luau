@@ -1,23 +1,33 @@
---[[
-	Flite Framework
-	Composable hooks-based game framework built on Weave.
+--[=[
+	@module Flite
+	@class Flite
 
-	Usage:
-		-- Server
-		local PlotService = Flite.createService("PlotService", function(self)
-			self:useMapState("playerPlots")
-			self:onPlayerAdded(function(player)
-				-- ...
-			end)
-		end)
+	A composable hooks-based game framework for Roblox, built on Weave.
+	The entry point exposes service, controller, and domain registration,
+	startup orchestration, schema contracts, permission helpers, and structured
+	error utilities.
 
-		-- Client
-		local MyController = Flite.createController("MyController", function(self)
-			self:onInit(function()
-				-- ...
-			end)
+	Public API surface (all available on the returned `Flite` table):
+
+	- **Registration**: `Flite.createService`, `Flite.createController`,
+	  `Flite.createDomain`, `Flite.loadModules`
+	- **Runtime**: `Flite.configure`, `Flite.start`, `Flite.stop`
+	- **Client proxies**: `Flite.getService`, `Flite.getDomain`
+	- **Validation & permissions**: `Flite.contract`, `Flite.perm`
+	- **Errors & cancellation**: `Flite.error`, `Flite.Errors`,
+	  `Flite.CancelToken`
+
+	```lua
+	local Flite = require(ReplicatedStorage.Libraries.Flite)
+
+	Flite.createService("PlotService", function(self)
+		local plots = self:useMapState("playerPlots", nil)
+		self:onPlayerAdded(function(player)
+			plots:set(player, {})
 		end)
-]]
+	end)
+	```
+]=]
 
 local RunService = game:GetService("RunService")
 local FrameworkBootstrap = require(script.Shared.FrameworkBootstrap)
@@ -82,8 +92,9 @@ export type Signal = {
 --[=[
 	@class MapState
 
-	Per-player reactive state. Each key (typically a Player) has its own value.
-	Replicates automatically to clients. Created via `self:useMapState()`.
+	Keyed reactive state. Each key (typically a Player, but any key works)
+	has its own value. Replicates automatically to clients. Created via
+	`self:useMapState()`.
 
 	```lua
 	local coins = self:useMapState("coins", 0)
@@ -98,25 +109,26 @@ export type MapState<V> = {
 	]=]
 	setDefault: (self: MapState<V>, defaultValue: V) -> (),
 	--[=[
-		Set a value for a specific key (e.g. Player).
+		Set a value for a specific key (commonly a Player, but any key is allowed).
 	]=]
-	set: (self: MapState<V>, key: Player, value: V) -> (),
+	set: (self: MapState<V>, key: any, value: V) -> (),
 	--[=[
-		Set a value for all keys matching a predicate function.
+		Set a value for all keys whose current value passes `predicate`.
 	]=]
-	setFilter: (self: MapState<V>, predicate: (key: Player, value: V) -> boolean, value: V) -> (),
+	setFilter: (self: MapState<V>, predicate: (key: any, value: V) -> boolean, value: V) -> (),
 	--[=[
 		Get the current value for a key. Returns the fallback default if unset.
 	]=]
-	get: (self: MapState<V>, key: Player) -> V,
+	get: (self: MapState<V>, key: any) -> V,
 	--[=[
-		Returns an iterator over all active keys and their current values.
+		Returns a generic-for iterator triple over all active keys and their
+		current values. Use as `for key, value in state:getEach() do`.
 	]=]
-	getEach: (self: MapState<V>) -> () -> (Player, V),
+	getEach: (self: MapState<V>) -> ((any, any) -> (any, V), any, any),
 	--[=[
 		Clear a specific key. It reverts to the fallback default.
 	]=]
-	clear: (self: MapState<V>, key: Player) -> (),
+	clear: (self: MapState<V>, key: any) -> (),
 	--[=[
 		Clear ALL keys. Everything reverts to the fallback default.
 	]=]
@@ -124,7 +136,7 @@ export type MapState<V> = {
 	--[=[
 		Observe a specific key's value. Fires immediately, then on changes. Returns a cleanup function.
 	]=]
-	observe: (self: MapState<V>, key: Player, callback: (newValue: V, oldValue: V) -> ()) -> () -> (),
+	observe: (self: MapState<V>, key: any, callback: (newValue: V, oldValue: V) -> ()) -> () -> (),
 	--[=[
 		Cleanup the MapState and disconnect all connections.
 	]=]
@@ -132,7 +144,7 @@ export type MapState<V> = {
 	--[=[
 		Fire to local server listeners only (inherited from Signal).
 	]=]
-	fire: (self: MapState<V>, newValue: V, oldValue: V, key: Player?) -> (),
+	fire: (self: MapState<V>, newValue: V, oldValue: V, key: any?) -> (),
 	--[=[
 		Fire to a specific client (inherited from Signal).
 	]=]
@@ -144,15 +156,15 @@ export type MapState<V> = {
 	--[=[
 		Subscribe to changes on any key.
 	]=]
-	connect: (self: MapState<V>, callback: (newValue: V, oldValue: V, key: Player?) -> ()) -> RBXScriptConnection,
+	connect: (self: MapState<V>, callback: (newValue: V, oldValue: V, key: any?) -> ()) -> RBXScriptConnection,
 	--[=[
 		Subscribe once (inherited from Signal).
 	]=]
-	once: (self: MapState<V>, callback: (newValue: V, oldValue: V, key: Player?) -> ()) -> RBXScriptConnection,
+	once: (self: MapState<V>, callback: (newValue: V, oldValue: V, key: any?) -> ()) -> RBXScriptConnection,
 	--[=[
 		Wait for next change (inherited from Signal).
 	]=]
-	wait: (self: MapState<V>) -> (V, V, Player?),
+	wait: (self: MapState<V>) -> (V, V, any?),
 }
 
 --[=[
@@ -332,7 +344,9 @@ export type GlobalValueState<V> = {
 	]=]
 	set: (self: GlobalValueState<V>, value: V) -> (),
 	--[=[
-		Atomic UpdateAsync wrapper. Pass a transform function that receives the current value and returns the new one.
+		Atomic UpdateAsync wrapper. Pass a transform function that receives the
+		current value and returns the new one. Returns the raw UpdateAsync
+		result (which may include the store's metadata).
 	]=]
 	update: (self: GlobalValueState<V>, transformFn: (current: V) -> V) -> any,
 	--[=[
@@ -519,13 +533,37 @@ export type Service = {
 		```
 	]=]
 	useDependency: (self: Service, serviceName: string) -> any,
+	--[=[
+		Schedule a function to run after a delay.
+	]=]
 	useTimeout: (self: Service, fn: () -> (), delayMs: number) -> thread,
+	--[=[
+		Schedule a function to run repeatedly at an interval.
+	]=]
 	useInterval: (self: Service, fn: () -> (), intervalMs: number) -> thread,
+	--[=[
+		Create and manage a Tween.
+	]=]
 	useTween: (self: Service, target: any, info: TweenInfo, goals: {[string]: any}, callback: (() -> ())?) -> { Cancel: () -> (), OnMarker: (number, () -> ()) -> any },
+	--[=[
+		Debounce a function call.
+	]=]
 	useDebounce: <T...>(self: Service, fn: (T...) -> (), delayMs: number) -> (T...) -> (),
+	--[=[
+		Throttle a function call.
+	]=]
 	useThrottle: <T...>(self: Service, fn: (T...) -> (), intervalMs: number) -> (T...) -> (),
+	--[=[
+		Create a mutable ref object.
+	]=]
 	useRef: <T>(self: Service, initialValue: T?) -> { current: T? },
+	--[=[
+		Memoize a computation based on dependencies.
+	]=]
 	useMemo: <T>(self: Service, fn: () -> T, dependencies: {any}) -> () -> T,
+	--[=[
+		Run side effects when dependencies change.
+	]=]
 	useEffect: (self: Service, fn: () -> (() -> ())?, dependencies: {any}) -> () -> (),
 	--[=[
 		Batch multiple updates together.

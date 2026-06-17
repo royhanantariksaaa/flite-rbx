@@ -1,5 +1,16 @@
+--[=[
+	@module LifecycleRegistration
+	@within Flite
+
+	Binds service lifecycle registration hooks onto the service setup context.
+]=]
+
 local LifecycleRegistration = {}
 
+--[=[
+	Installs lifecycle registration methods on a service builder context.
+	@param context context: any
+]=]
 function LifecycleRegistration.bind(context: any)
 	function context:onInit(callback: () -> ())
 		self._onInit = callback

@@ -1,16 +1,19 @@
---[[
+--[=[
+	@module SchemaPublisher
+	@within Flite
+
 	SchemaPublisher
 	Shared helper for extracting and publishing method schemas to Attributes.
-]]
+]=]
 
 local HttpService = game:GetService("HttpService")
 local t = require(script.Parent.t)
 
 local SchemaPublisher = {}
 
---[[
+--[=[
 	Extracts a flat list of exposed method names.
-]]
+]=]
 function SchemaPublisher.extractMethodNames(exposedMethods: { [string]: any }): { string }
 	local methodNames = {}
 	for methodName in exposedMethods do
@@ -19,10 +22,10 @@ function SchemaPublisher.extractMethodNames(exposedMethods: { [string]: any }): 
 	return methodNames
 end
 
---[[
+--[=[
 	Extracts method schemas from an exposed methods table.
 	Only methods that contain at least one valid schema are included.
-]]
+]=]
 function SchemaPublisher.extractMethodSchemas(exposedMethods: { [string]: any }): { [string]: { [number]: string } }
 	local methodSchemas = {}
 
@@ -48,6 +51,10 @@ function SchemaPublisher.extractMethodSchemas(exposedMethods: { [string]: any })
 	return methodSchemas
 end
 
+--[=[
+	Extracts serializable return schemas from exposed method metadata.
+	@param exposedMethods exposedMethods: { [string]: any }
+]=]
 function SchemaPublisher.extractMethodReturnSchemas(exposedMethods: { [string]: any }): { [string]: { [number]: string } }
 	local methodReturnSchemas = {}
 
@@ -73,9 +80,9 @@ function SchemaPublisher.extractMethodReturnSchemas(exposedMethods: { [string]: 
 	return methodReturnSchemas
 end
 
---[[
+--[=[
 	Publishes extracted method schemas to the `_methodSchemas` attribute.
-]]
+]=]
 function SchemaPublisher.publishMethodSchemas(target: Instance, exposedMethods: { [string]: any })
 	local methodNames = SchemaPublisher.extractMethodNames(exposedMethods)
 	if #methodNames > 0 then
@@ -94,4 +101,3 @@ function SchemaPublisher.publishMethodSchemas(target: Instance, exposedMethods: 
 end
 
 return SchemaPublisher
-

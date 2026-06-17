@@ -1,3 +1,10 @@
+--[=[
+	@module PermissionPolicy
+	@within Flite
+
+	Composable permission policies for validating client-originated requests.
+]=]
+
 local PermissionPolicy = {}
 
 local function isPolicy(value: any): boolean
@@ -34,22 +41,47 @@ local function evaluatePolicy(policy: any, context: any): (boolean, string?)
 	return false, `unsupported permission policy type: {type(policy)}`
 end
 
+--[=[
+	Evaluate a policy-like value against a request context.
+
+	@param policy any -- policy object, function, or boolean
+	@param context any -- request context, usually containing `player`
+	@return boolean -- true when allowed
+	@return string? -- denial reason when not allowed
+]=]
 function PermissionPolicy.evaluate(policy: any, context: any): (boolean, string?)
 	return evaluatePolicy(policy, context)
 end
 
+--[=[
+	Create a policy that always allows.
+
+	@return any -- permission policy
+]=]
 function PermissionPolicy.allowAll()
 	return wrapEvaluator(function()
 		return true, nil
 	end)
 end
 
+--[=[
+	Create a policy that always denies.
+
+	@param reason string? -- optional denial reason
+	@return any -- permission policy
+]=]
 function PermissionPolicy.deny(reason: string?)
 	return wrapEvaluator(function()
 		return false, reason or "denied by policy"
 	end)
 end
 
+--[=[
+	Create a policy that allows players on a specific team.
+
+	@param teamNameOrId string | number -- Team.Name or TeamColor number
+	@return any -- permission policy
+]=]
 function PermissionPolicy.team(teamNameOrId: string | number)
 	return wrapEvaluator(function(context)
 		local player = context.player
@@ -63,6 +95,13 @@ function PermissionPolicy.team(teamNameOrId: string | number)
 	end)
 end
 
+--[=[
+	Create a policy that allows players with a minimum group rank.
+
+	@param groupId number -- Roblox group id
+	@param minimumRank number -- minimum accepted rank
+	@return any -- permission policy
+]=]
 function PermissionPolicy.groupRank(groupId: number, minimumRank: number)
 	return wrapEvaluator(function(context)
 		local player = context.player
@@ -77,6 +116,12 @@ function PermissionPolicy.groupRank(groupId: number, minimumRank: number)
 	end)
 end
 
+--[=[
+	Create a policy that allows only listed user ids.
+
+	@param allowedUserIds { number } -- allowed `Player.UserId` values
+	@return any -- permission policy
+]=]
 function PermissionPolicy.userIds(allowedUserIds: { number })
 	local allowed = {}
 	for _, id in ipairs(allowedUserIds) do
@@ -88,6 +133,12 @@ function PermissionPolicy.userIds(allowedUserIds: { number })
 	end)
 end
 
+--[=[
+	Wrap a custom predicate as a permission policy.
+
+	@param fn (any) -> (boolean, string?) -- receives request context
+	@return any -- permission policy
+]=]
 function PermissionPolicy.custom(fn: (any) -> (boolean, string?))
 	return wrapEvaluator(function(context)
 		local ok, result, reason = pcall(fn, context)
@@ -98,6 +149,12 @@ function PermissionPolicy.custom(fn: (any) -> (boolean, string?))
 	end)
 end
 
+--[=[
+	Create a policy that allows when any child policy allows.
+
+	@param ... any -- policy-like values
+	@return any -- permission policy
+]=]
 function PermissionPolicy.any(...: any)
 	local policies = table.pack(...)
 	return wrapEvaluator(function(context)
@@ -113,6 +170,12 @@ function PermissionPolicy.any(...: any)
 	end)
 end
 
+--[=[
+	Create a policy that allows only when all child policies allow.
+
+	@param ... any -- policy-like values
+	@return any -- permission policy
+]=]
 function PermissionPolicy.all(...: any)
 	local policies = table.pack(...)
 	return wrapEvaluator(function(context)
@@ -126,6 +189,12 @@ function PermissionPolicy.all(...: any)
 	end)
 end
 
+--[=[
+	Create a policy that inverts another policy.
+
+	@param policy any -- policy-like value to negate
+	@return any -- permission policy
+]=]
 function PermissionPolicy.negate(policy: any)
 	return wrapEvaluator(function(context)
 		local ok = evaluatePolicy(policy, context)

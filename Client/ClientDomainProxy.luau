@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module ClientDomainProxy
+	@within Flite
+
 	ClientDomainProxy
 	Client wrapper for shared Domain methods with optimistic local prediction.
-]]
+]=]
 
 local Promise = require(game:GetService("ReplicatedStorage").Libraries.Promise)
 local HttpService = game:GetService("HttpService")
@@ -109,6 +112,11 @@ local function withProgress(promiseObj: any, attachFn: (callback: (any) -> ()) -
 	end
 
 	local wrapper = {}
+	--[=[
+	Registers a progress callback on a wrapped Promise-like request.
+	@param callback Receives progress payloads for the in-flight request.
+	@return self
+]=]
 	function wrapper:onProgress(callback)
 		if type(callback) == "function" then
 			attachFn(callback)
@@ -131,6 +139,17 @@ local function withProgress(promiseObj: any, attachFn: (callback: (any) -> ()) -
 	return wrapper
 end
 
+--[=[
+	Creates a client domain proxy that can call server methods and run local
+	prediction against shared domain definitions.
+	@param domainName Domain name exposed by the server.
+	@param domainDef Client-side domain metadata and optional local implementations.
+	@param methodEvent RemoteFunction used for method calls.
+	@param signalEvent RemoteEvent used for domain signal forwarding.
+	@param getLocalService Resolves client service proxies for prediction.
+	@param getLocalDomain Resolves client domain proxies for prediction.
+	@return any
+]=]
 function ClientDomainProxy.new(
 	domainName: string,
 	domainDef: any,
@@ -167,6 +186,10 @@ function ClientDomainProxy.new(
 							local writeValue = writeStateValue(value)
 							if readValue and writeValue then
 								local wrappedValue = {}
+--[=[
+	Writes a predicted state value while recording enough data to roll it back.
+	@param newValue newValue
+]=]
 								wrappedValue.set = function(_, newValue)
 									table.insert(rollbacks, {
 										state = value,
@@ -174,6 +197,10 @@ function ClientDomainProxy.new(
 									})
 									writeValue(newValue)
 								end
+--[=[
+	Reads the current predicted state value.
+	@return any
+]=]
 								wrappedValue.get = function()
 									return readValue()
 								end
@@ -219,10 +246,21 @@ function ClientDomainProxy.new(
 		isRollingBack = false
 	end
 
+--[=[
+	Emits a local domain event to listeners on the client.
+	@param eventName eventName: string
+	@param payload payload: any?
+]=]
 	function proxy:emit(eventName: string, payload: any?)
 		DomainBus.emit(domainName, eventName, payload)
 	end
 
+--[=[
+	Subscribes to a local domain event.
+	@param eventName eventName: string
+	@param callback Receives the event payload.
+	@return () -> ()
+]=]
 	function proxy:on(eventName: string, callback: (any?) -> ())
 		return DomainBus.on(domainName, eventName, callback)
 	end

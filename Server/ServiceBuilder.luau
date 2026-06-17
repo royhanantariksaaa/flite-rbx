@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module ServiceBuilder
+	@within Flite
+
 	ServiceBuilder
 	Builds framework services from composable registration APIs.
-]]
+]=]
 
 local DependencyProxy = require(script.Parent.Parent.Shared.DependencyProxy)
 local PersistentBridge = require(script.Parent.PersistentBridge)
@@ -23,6 +26,17 @@ local function hasNetworkSignals(signals: { [string]: any }): boolean
 	return false
 end
 
+--[=[
+	Builds a server service and installs the builder APIs used by service setup code.
+	@param globalStateEvent RemoteEvent used for replicated state.
+	@param globalSignalEvent RemoteEvent used for reliable signals.
+	@param globalUnreliableSignalEvent UnreliableRemoteEvent used for unreliable signals.
+	@param name Service name.
+	@param getServiceFn Resolves declared service and domain dependencies.
+	@param setupFn Configures the service builder context.
+	@param options Optional metadata publication settings.
+	@return any
+]=]
 function ServiceBuilder.build(
 	globalStateEvent: RemoteEvent,
 	globalSignalEvent: RemoteEvent,
@@ -113,10 +127,19 @@ function ServiceBuilder.build(
 		table.insert(context._cleanupCallbacks, fn)
 	end)
 
+--[=[
+	Registers middleware that can approve or reject exposed method calls.
+	@param middlewareFn Receives the player, method name, and call arguments.
+]=]
 	function context:useMiddleware(middlewareFn: (player: Player, methodName: string, ...any) -> boolean)
 		table.insert(self._middlewares, middlewareFn)
 	end
 
+	--[=[
+		Exposes service methods to clients.
+		@param nameOrTable Method name or method-name list.
+		@param config Optional exposure config.
+	]=]
 	function context:expose(nameOrTable: string | { string }, config: any?)
 		local conf = config or {}
 		if type(nameOrTable) == "table" then
@@ -128,6 +151,11 @@ function ServiceBuilder.build(
 		end
 	end
 
+--[=[
+	Declares and resolves a dependency on another service.
+	@param serviceName serviceName: string
+	@return any
+]=]
 	function context:useDependency(serviceName: string)
 		if not table.find(self._dependencies, serviceName) then
 			table.insert(self._dependencies, serviceName)
@@ -141,6 +169,13 @@ function ServiceBuilder.build(
 	end
 
 	-- === SERVER ONLY HOOKS ===
+--[=[
+	Creates a simple per-player rate-limit middleware.
+	@param key key: string
+	@param limit limit: number
+	@param windowMs windowMs: number
+	@return (Player) -> boolean
+]=]
 	function context:useRateLimit(key: string, limit: number, windowMs: number)
 		local calls = {}
 		return function(player: Player): boolean
@@ -155,6 +190,11 @@ function ServiceBuilder.build(
 		end
 	end
 
+--[=[
+	Creates a helper that updates player state through a guarded transaction callback.
+	@param state state: any
+	@return (Player, (any) -> any?) -> ()
+]=]
 	function context:useTransaction(state: any)
 		return function(player: Player, updateFn: (current: any) -> any?)
 			local current = state:get(player)
@@ -233,18 +273,30 @@ function ServiceBuilder.build(
 	return service
 end
 
+--[=[
+	Runs a service init lifecycle callback when one is registered.
+	@param service service: any
+]=]
 function ServiceBuilder.initialize(service: any)
 	if service._onInit then
 		service._onInit()
 	end
 end
 
+--[=[
+	Runs a service start lifecycle callback when one is registered.
+	@param service service: any
+]=]
 function ServiceBuilder.finalize(service: any)
 	if service._onStart then
 		service._onStart()
 	end
 end
 
+--[=[
+	Runs service shutdown callbacks and cleans up owned resources.
+	@param service service: any
+]=]
 function ServiceBuilder.destroy(service: any)
 	if type(service._onStop) == "function" then
 		local ok, err = pcall(service._onStop)

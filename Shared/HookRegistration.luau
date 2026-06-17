@@ -1,9 +1,12 @@
---[[
+--[=[
+	@module HookRegistration
+	@within Flite
+
 	HookRegistration
 
 	Shared universal hooks available on Controllers, Services, and Domains.
 	All hooks are implemented ONCE here and bound to all scopes automatically.
-]]
+]=]
 
 local HookRegistration = {}
 
@@ -38,6 +41,11 @@ local function trackCharacters(rp: any, players: {Player})
 	return connections
 end
 
+--[=[
+	Installs cleanup and observer helper methods on a builder scope.
+	@param scope scope: any
+	@param addCleanup Stores a cleanup callback on the owning builder.
+]=]
 function HookRegistration.bind(scope: any, addCleanup: (() -> ()) -> ())
 	-- === UNIVERSAL HOOKS ===
 	function scope:useTimeout(fn: () -> (), delayMs: number)

@@ -1,5 +1,16 @@
+--[=[
+	@module PersistenceRegistration
+	@within Flite
+
+	Binds persistence helpers for mapping service state into DataStore sessions.
+]=]
+
 local PersistenceRegistration = {}
 
+--[=[
+	Installs persistence registration methods on a service builder context.
+	@param context context: any
+]=]
 function PersistenceRegistration.bind(context: any)
 	function context:usePersistent(store: any, fields: { string }?)
 		local fieldList = fields or {}

@@ -1,11 +1,20 @@
---[[
+--[=[
+	@module DependencyProxy
+	@within Flite
+
 	DependencyProxy
 	Creates a lazy proxy that resolves a dependency on first access and
 	auto-binds function calls to the resolved dependency table.
-]]
+]=]
 
 local DependencyProxy = {}
 
+--[=[
+	Creates a lazy dependency proxy that resolves members on demand.
+	@param dependencyName dependencyName: string
+	@param resolveFn Resolves the backing dependency by name.
+	@return any
+]=]
 function DependencyProxy.create(dependencyName: string, resolveFn: (string) -> any, notFoundMessage: string)
 	local proxy = {}
 	local resolved = nil

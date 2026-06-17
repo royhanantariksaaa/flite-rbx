@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module FrameworkClient
+	@within Flite
+
 	FrameworkClient
 	Handles Client-side controller creation, domain proxying, and lifecycle bootstrapping.
-]]
+]=]
 
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
@@ -96,6 +99,16 @@ local function decodeServiceManifest(serviceFolder: Folder): any?
 	return nil
 end
 
+--[=[
+	Creates and registers a client controller from a setup callback.
+	@param name Controller name.
+	@param setupFn Configures the controller object.
+	@param controllers Controller registry table.
+	@param services Service proxy registry table.
+	@param domains Domain proxy registry table.
+	@param FrameworkComm Replicated framework communication folder.
+	@return any
+]=]
 function FrameworkClient.createController(name: string, setupFn: (controller: any) -> (), controllers: any, services: any, domains: any, FrameworkComm: Folder)
 	local controller = ControllerBuilder.build(name, function(dependencyName)
 		assert(controllers[dependencyName], `[Framework] Controller "{dependencyName}" not found`)
@@ -109,6 +122,13 @@ function FrameworkClient.createController(name: string, setupFn: (controller: an
 	return controller
 end
 
+--[=[
+	Returns a cached client service proxy, creating it from replicated metadata when needed.
+	@param name name: string
+	@param services services: any
+	@param FrameworkComm FrameworkComm: Folder
+	@return any
+]=]
 function FrameworkClient.getService(name: string, services: any, FrameworkComm: Folder)
 	if not services[name] then
 		local serviceFolder = FrameworkComm:FindFirstChild(name) or FrameworkComm:WaitForChild(name, 10)
@@ -179,6 +199,14 @@ function FrameworkClient.getService(name: string, services: any, FrameworkComm: 
 	return services[name]
 end
 
+--[=[
+	Returns a cached client domain proxy, creating it from replicated metadata when needed.
+	@param name name: string
+	@param domains domains: any
+	@param FrameworkComm FrameworkComm: Folder
+	@param services services: any
+	@return any
+]=]
 function FrameworkClient.getDomain(name: string, domains: any, FrameworkComm: Folder, services: any)
 	if not domains[name] then
 		local domainFolder = FrameworkComm:FindFirstChild(name .. "_Domain") or FrameworkComm:WaitForChild(name .. "_Domain", 10)
@@ -268,6 +296,11 @@ function FrameworkClient.getDomain(name: string, domains: any, FrameworkComm: Fo
 	return domains[name]
 end
 
+--[=[
+	Starts client controller lifecycle callbacks in dependency order.
+	@param controllers controllers: any
+	@param options options: StartOptions?
+]=]
 function FrameworkClient.start(controllers: any, options: StartOptions?)
 	local startOptions = options or {}
 	local deferLifecycle = startOptions.deferLifecycle == true

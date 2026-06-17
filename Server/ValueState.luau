@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module ValueState
+	@within Flite
+
 	ValueState
 	Global reactive state (scalar). Extends FrameworkSignal with value storage.
 	Replaces the old approach where `useSharedState` reused `PlayerState`.
@@ -8,16 +11,16 @@
 		state:get()                      -- Get current value
 		state:observe(fn)                -- Observe changes
 		state:destroy()                  -- Cleanup
-]]
+]=]
 
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
 
 local ValueState = {}
 ValueState.__index = ValueState
 
---[[
+--[=[
 	Constructs a new ValueState.
-]]
+]=]
 function ValueState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: string, default: any)
 	local self = setmetatable({}, ValueState)
 
@@ -30,7 +33,7 @@ function ValueState.new(globalEvent: RemoteEvent, serviceName: string, fieldName
 	return self
 end
 
---[[ Set the value for all clients. Replicates automatically. ]]
+--[=[ Set the value for all clients. Replicates automatically. ]=]
 function ValueState:set(value: any)
 	local oldValue = self._value
 	self._value = value
@@ -44,12 +47,12 @@ function ValueState:set(value: any)
 	end
 end
 
---[[ Get the current value. ]]
+--[=[ Get the current value. ]=]
 function ValueState:get(): any
 	return self._value
 end
 
---[[ Like connect(), but fires immediately with the current value. ]]
+--[=[ Like connect(), but fires immediately with the current value. ]=]
 function ValueState:observe(callback: (any, any) -> ())
 	task.defer(callback, self._value, nil)
 	-- Subscribe to internal local signal
@@ -61,7 +64,7 @@ function ValueState:observe(callback: (any, any) -> ())
 	end
 end
 
---[[ Destroy the ValueState. ]]
+--[=[ Destroy the ValueState. ]=]
 function ValueState:destroy()
 	self._dispatcher:destroy()
 end

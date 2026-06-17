@@ -1,4 +1,7 @@
---[[
+--[=[
+	@module ClientSignalProxy
+	@within Flite
+
 	ClientSignalProxy
 	Client-side proxy for a FrameworkSignal, used within ServiceProxy.
 	Wraps the global SignalEvent RemoteEvent for subscribing + firing to server.
@@ -7,7 +10,7 @@
 		signal:connect(fn)       -- Subscribe to server-fired events
 		signal:once(fn)          -- Subscribe once, auto-disconnect
 		signal:fireServer(...)   -- Fire event to the server
-]]
+]=]
 
 local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 local BufferCodec = require(script.Parent.Parent.Shared.BufferCodec)
@@ -15,13 +18,13 @@ local BufferCodec = require(script.Parent.Parent.Shared.BufferCodec)
 local ClientSignalProxy = {}
 ClientSignalProxy.__index = ClientSignalProxy
 
---[[
+--[=[
 	Create a new client-side signal proxy.
 	@param signalEvent   The global SignalEvent RemoteEvent
 	@param serviceName   Owning service name
 	@param signalName    Signal name
 	@param schemas       (Optional) Array of `t` schema objects for buffer compression
-]]
+]=]
 function ClientSignalProxy.new(signalEvent: any, serviceName: string, signalName: string, schemas: {any}?)
 	local self = setmetatable({}, ClientSignalProxy)
 
@@ -37,17 +40,17 @@ function ClientSignalProxy.new(signalEvent: any, serviceName: string, signalName
 	return self
 end
 
---[[ Subscribe to this signal. Callback fires whenever the server fires it. ]]
+--[=[ Subscribe to this signal. Callback fires whenever the server fires it. ]=]
 function ClientSignalProxy:connect(callback: (...any) -> ())
 	return self._localSignal:connect(callback)
 end
 
---[[ Subscribe once. Auto-disconnects after the first fire. ]]
+--[=[ Subscribe once. Auto-disconnects after the first fire. ]=]
 function ClientSignalProxy:once(callback: (...any) -> ())
 	return self._localSignal:once(callback)
 end
 
---[[ Fire this signal to the server. ]]
+--[=[ Fire this signal to the server. ]=]
 function ClientSignalProxy:fireServer(...)
 	local args = table.pack(...)
 	if self._schemas then
@@ -58,12 +61,12 @@ function ClientSignalProxy:fireServer(...)
 	end
 end
 
---[[ Called by init.luau's central listener to dispatch incoming server events. ]]
+--[=[ Called by init.luau's central listener to dispatch incoming server events. ]=]
 function ClientSignalProxy:_dispatch(...)
 	self._localSignal:fire(...)
 end
 
---[[ Cleanup. ]]
+--[=[ Cleanup. ]=]
 function ClientSignalProxy:destroy()
 	self._localSignal:destroy()
 end

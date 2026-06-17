@@ -1,9 +1,21 @@
+--[=[
+	@module SignalRegistration
+	@within Flite
+
+	Binds reliable and unreliable signal constructors onto service contexts.
+]=]
+
 local FrameworkSignal = require(script.Parent.Parent.FrameworkSignal)
 local MessagingService = game:GetService("MessagingService")
 local Echo = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 
 local SignalRegistration = {}
 
+--[=[
+	Installs signal registration methods on a service builder context.
+	@param context context: any
+	@param config config: any
+]=]
 function SignalRegistration.bind(context: any, config: any)
 	local function registerSignal(selfRef: any, eventRef: any, nameOrTable: string | { string }, schemas: { any }?)
 		if type(nameOrTable) == "table" then

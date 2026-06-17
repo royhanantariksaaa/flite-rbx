@@ -1,7 +1,10 @@
---[[
+--[=[
+	@module FrameworkServer
+	@within Flite
+
 	FrameworkServer
 	Handles Server-side service creation, domain routing, and lifecycle bootstrapping.
-]]
+]=]
 
 local RunService = game:GetService("RunService")
 local serviceBuilderModule = nil
@@ -57,6 +60,18 @@ makeFrameDispatcher = function(listener: any): ((number) -> ())?
 	return nil
 end
 
+--[=[
+	Creates and registers a server service from a setup callback.
+	@param name Service name.
+	@param setupFn Configures the service builder context.
+	@param services Service registry table.
+	@param domains Domain registry table.
+	@param stateEvent RemoteEvent used for state replication.
+	@param signalEvent RemoteEvent used for reliable signals.
+	@param unreliableSignalEvent UnreliableRemoteEvent used for unreliable signals.
+	@param options Optional server start options.
+	@return any
+]=]
 function FrameworkServer.createService(
 	name: string,
 	setupFn: (service: any) -> (),
@@ -84,6 +99,11 @@ function FrameworkServer.createService(
 	return service
 end
 
+--[=[
+	Creates and registers a server-side domain definition.
+	@param name name: string
+	@param setupFn Configures the domain builder context.
+]=]
 function FrameworkServer.createDomain(name: string, setupFn: (domain: any) -> (), domains: any, services: any)
 	local domainDef = DomainBuilder.build(name, function(domainName)
 		assert(domains[domainName], `[Framework] Domain "{domainName}" not found`)
@@ -118,6 +138,12 @@ function FrameworkServer.createDomain(name: string, setupFn: (domain: any) -> ()
 	return proxy
 end
 
+--[=[
+	Starts server services and domains, including lifecycle and networking setup.
+	@param services services: any
+	@param domains domains: any
+	@param options options: StartOptions?
+]=]
 function FrameworkServer.start(services: any, domains: any, options: StartOptions?)
 	local startOptions = options or {}
 	local deferLifecycle = startOptions.deferLifecycle == true

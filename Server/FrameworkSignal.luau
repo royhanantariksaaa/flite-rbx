@@ -1,6 +1,9 @@
---[[
+--[=[
+	@module FrameworkSignal
+	@within Flite
+
 	FrameworkSignal
-	Unified signal for both server↔client (network) and server↔server (local) events.
+	Unified signal for both serverâ†”client (network) and serverâ†”server (local) events.
 	This is the base class that PlayerState inherits from.
 
 	Architecture:
@@ -23,19 +26,19 @@
 		signal:connect(fn)              -- Subscribe to server-fired events
 		signal:once(fn)                 -- Subscribe once
 		signal:fireServer(...)          -- Fire to the server
-]]
+]=]
 
 local Signal = require(game:GetService("ReplicatedStorage").Libraries.Echo)
 
 local FrameworkSignal = {}
 FrameworkSignal.__index = FrameworkSignal
 
---[[
+--[=[
 	Constructs a new FrameworkSignal.
 	@param globalEvent   The single shared RemoteEvent OR UnreliableRemoteEvent for signal traffic
 	@param serviceName   Name of the owning service (routing key)
 	@param signalName    Name of this signal (routing key)
-]]
+]=]
 function FrameworkSignal.new(globalEvent: RemoteEvent | UnreliableRemoteEvent, serviceName: string, signalName: string)
 	local self = setmetatable({}, FrameworkSignal)
 
@@ -49,57 +52,61 @@ function FrameworkSignal.new(globalEvent: RemoteEvent | UnreliableRemoteEvent, s
 	return self
 end
 
--- ── Firing ─────────────────────────────────────────────
-
---[[ Fire to local server listeners only. Does NOT cross the network. ]]
+-- Firing
+--[=[ Fire to local server listeners only. Does NOT cross the network. ]=]
 function FrameworkSignal:fire(...)
 	self._localSignal:fire(...)
 end
 
---[[ Fire to a specific client via the global RemoteEvent.
-     Does NOT fire local server listeners. ]]
+--[=[ Fire to a specific client via the global RemoteEvent.
+     Does NOT fire local server listeners. ]=]
+--[=[
+	Fires the signal for one client.
+	@param player Player affected by this API.
+]=]
 function FrameworkSignal:fireClient(player: Player, ...)
 	self._globalEvent:FireClient(player, self._serviceName, self._signalName, ...)
 end
 
---[[ Broadcast to ALL connected clients via the global RemoteEvent.
-     Does NOT fire local server listeners. ]]
+--[=[ Broadcast to ALL connected clients via the global RemoteEvent.
+     Does NOT fire local server listeners. ]=]
+--[=[
+	Fires the signal for all clients.
+]=]
 function FrameworkSignal:fireAllClients(...)
 	self._globalEvent:FireAllClients(self._serviceName, self._signalName, ...)
 end
 
---[[ Fire to one client AND local server listeners. ]]
+--[=[ Fire to one client AND local server listeners. ]=]
 function FrameworkSignal:fireClientAndLocal(player: Player, ...)
 	self._globalEvent:FireClient(player, self._serviceName, self._signalName, ...)
 	self._localSignal:fire(...)
 end
 
---[[ Broadcast to ALL clients AND local server listeners. ]]
+--[=[ Broadcast to ALL clients AND local server listeners. ]=]
 function FrameworkSignal:fireAll(...)
 	self._globalEvent:FireAllClients(self._serviceName, self._signalName, ...)
 	self._localSignal:fire(...)
 end
 
--- ── Subscribing ────────────────────────────────────────
-
---[[ Subscribe to this signal (server-side). Returns an RBXScriptConnection. ]]
+-- Subscribing
+--[=[ Subscribe to this signal (server-side). Returns an RBXScriptConnection. ]=]
 function FrameworkSignal:connect(callback: (...any) -> ())
 	return self._localSignal:connect(callback)
 end
 
---[[ Subscribe once. Auto-disconnects after the first fire. ]]
+--[=[ Subscribe once. Auto-disconnects after the first fire. ]=]
 function FrameworkSignal:once(callback: (...any) -> ())
 	return self._localSignal:once(callback)
 end
 
---[[ Yield the calling thread until this signal fires. Returns the fired args. ]]
+--[=[ Yield the calling thread until this signal fires. Returns the fired args. ]=]
 function FrameworkSignal:wait()
 	return self._localSignal:wait()
 end
 
--- ── Cleanup ────────────────────────────────────────────
-
---[[ Destroy the signal and disconnect all listeners. ]]
+-- Cleanup
+--[=[ Destroy the signal and disconnect all listeners. ]=]
 function FrameworkSignal:destroy()
 	self._localSignal:destroy()
 end

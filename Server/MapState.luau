@@ -1,18 +1,21 @@
---[[
+--[=[
+	@module MapState
+	@within Flite
+
 	MapState
 	Per-player reactive state. Extends FrameworkSignal with value storage.
 
 	Inheritance:
 		FrameworkSignal (fire, fireClient, fireAllClients, connect, etc.)
-		└── MapState (adds _value, _perPlayer, get/set/clear/observe)
+		`-- MapState (adds _value, _perPlayer, get/set/clear/observe)
 
 	The set/setFor methods store the value AND fire the inherited signal
 	methods to replicate to clients and notify server listeners.
 
 	Server API (inherited from FrameworkSignal):
-		state:fire(...)               → notify server listeners only
-		state:fireClient(player, ...) → fire to one client
-		state:connect(fn)             → subscribe server-side
+		state:fire(...)               -> notify server listeners only
+		state:fireClient(player, ...) -> fire to one client
+		state:connect(fn)             -> subscribe server-side
 
 	Server API (MapState-specific):
 		state:setDefault(value)          -- Set the fallback value for all missing keys
@@ -24,7 +27,7 @@
 		state:clearAll()                 -- Clear ALL keys
 		state:observe(key, fn)           -- Observe a specific key's value
 		state:destroy()                  -- Cleanup
-]]
+]=]
 
 local Players = game:GetService("Players")
 local FrameworkSignal = require(script.Parent.FrameworkSignal)
@@ -36,13 +39,13 @@ local MapState = {}
 MapState.__index = MapState
 local warnedAliases = {}
 
---[[
+--[=[
 	Constructs a new MapState.
 	@param globalEvent   The shared RemoteEvent
 	@param serviceName   Owning service name (routing key)
 	@param fieldName     Field name (routing key, also used as signal name)
 	@param default       Default/initial value for all players
-]]
+]=]
 function MapState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: string, default: any)
 	local self = setmetatable({}, MapState)
 
@@ -53,7 +56,7 @@ function MapState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: 
 	-- MapState-specific: value storage
 	self._default = default           -- Initial value (used for client discovery)
 	self._value = default             -- Current top-level value
-	self._perPlayer = {}              -- Player → value (or NONE for explicit nil)
+	self._perPlayer = {}              -- Player -> value (or NONE for explicit nil)
 
 	-- Auto-cleanup per-player data when a player leaves
 	self._playerRemoving = Players.PlayerRemoving:Connect(function(player)
@@ -63,9 +66,8 @@ function MapState.new(globalEvent: RemoteEvent, serviceName: string, fieldName: 
 	return self
 end
 
--- ── Setters ────────────────────────────────────────────
-
---[[ Set the fallback value for ALL unassigned keys. ]]
+-- Setters
+--[=[ Set the fallback value for ALL unassigned keys. ]=]
 function MapState:setDefault(value: any)
 	local oldValue = self._value
 	self._value = value
@@ -81,7 +83,7 @@ function MapState:setDefault(value: any)
 	end
 end
 
---[[ Set a custom value for a specific key (e.g. Player). ]]
+--[=[ Set a custom value for a specific key (e.g. Player). ]=]
 function MapState:set(key: any, value: any)
 	local oldValue = self:get(key)
 	
@@ -105,12 +107,18 @@ local function warnDeprecated(aliasName: string)
 	warn(`[Framework] MapState:{aliasName} is deprecated. Use MapState:set/get/clear instead.`)
 end
 
+--[=[
+	Sets the value stored for a map key and replicates the change.
+	@param key key: any
+	@param value value: any
+	@return nil
+]=]
 function MapState:setFor(key: any, value: any)
 	warnDeprecated("setFor")
 	self:set(key, value)
 end
 
---[[ Set a value for keys matching a predicate function. ]]
+--[=[ Set a value for keys matching a predicate function. ]=]
 function MapState:setFilter(predicate: (any, any) -> boolean, value: any)
 	for key, val in self:getEach() do
 		if predicate(key, val) then
@@ -119,9 +127,8 @@ function MapState:setFilter(predicate: (any, any) -> boolean, value: any)
 	end
 end
 
--- ── Clearing ───────────────────────────────────────────
-
---[[ Clear a specific key. It reverts to the fallback default. ]]
+-- Clearing
+--[=[ Clear a specific key. It reverts to the fallback default. ]=]
 function MapState:clear(key: any)
 	if self._perPlayer[key] == nil then return end
 	local oldValue = self:get(key)
@@ -136,12 +143,16 @@ function MapState:clear(key: any)
 	end
 end
 
+--[=[
+	Clears the value stored for a map key and replicates the change.
+	@param key key: any
+]=]
 function MapState:clearFor(key: any)
 	warnDeprecated("clearFor")
 	self:clear(key)
 end
 
---[[ Clear ALL keys. Everything reverts to the fallback default. ]]
+--[=[ Clear ALL keys. Everything reverts to the fallback default. ]=]
 function MapState:clearAll()
 	local hadKeys = next(self._perPlayer) ~= nil
 	table.clear(self._perPlayer)
@@ -151,9 +162,8 @@ function MapState:clearAll()
 	end
 end
 
--- ── Getters ────────────────────────────────────────────
-
---[[ Get the current value for a key. Returns the specific key value if set, else the fallback default. ]]
+-- Getters
+--[=[ Get the current value for a key. Returns the specific key value if set, else the fallback default. ]=]
 function MapState:get(key: any): any
 	local pv = self._perPlayer[key]
 	if pv == nil then return self._value end
@@ -161,14 +171,18 @@ function MapState:get(key: any): any
 	return pv
 end
 
+--[=[
+	Reads the value for a specific key.
+	@param key Key used by this API.
+	@return any
+]=]
 function MapState:getFor(key: any): any
 	warnDeprecated("getFor")
 	return self:get(key)
 end
 
--- ── Iteration & Observation ────────────────────────────
-
---[[ Returns an iterable mapping of all active keys and their current values. ]]
+-- Iteration & Observation
+--[=[ Returns an iterable mapping of all active keys and their current values. ]=]
 function MapState:getEach()
 	return function(_, k)
 		local nextKey, nextValue = next(self._perPlayer, k)
@@ -180,8 +194,13 @@ function MapState:getEach()
 	end, self._perPlayer, nil
 end
 
---[[ Observe a specific key's value. Fires immediately, then on changes.
-     Returns a cleanup function. ]]
+--[=[ Observe a specific key's value. Fires immediately, then on changes.
+     Returns a cleanup function. ]=]
+--[=[
+	Subscribes to value changes.
+	@param key Key used by this API.
+	@param callback Callback invoked by this API.
+]=]
 function MapState:observe(key: any, callback: (any, any) -> ())
 	task.defer(callback, self:get(key), nil)
 	local lastValue = self:get(key)
@@ -202,9 +221,8 @@ function MapState:observe(key: any, callback: (any, any) -> ())
 	end
 end
 
--- ── Cleanup ────────────────────────────────────────────
-
---[[ Destroy the MapState. Cleans up connections and the inherited signal. ]]
+-- Cleanup
+--[=[ Destroy the MapState. Cleans up connections and the inherited signal. ]=]
 function MapState:destroy()
 	self._playerRemoving:Disconnect()
 	table.clear(self._perPlayer)

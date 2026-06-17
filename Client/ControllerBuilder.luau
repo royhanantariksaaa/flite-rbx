@@ -1,8 +1,11 @@
---[[
+--[=[
+	@module ControllerBuilder
+	@within Flite
+
 	ControllerBuilder
 	Instantiates scopes, hooks up ScopeExtensions, and tracks lifecycle 
 	for Client Controllers.
-]]
+]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ScopeExtensions = require(script.Parent.ScopeExtensions)
@@ -12,9 +15,9 @@ local DependencyProxy = require(script.Parent.Parent.Shared.DependencyProxy)
 
 local ControllerBuilder = {}
 
---[[
+--[=[
 	Build a new Controller from a setup function.
-]]
+]=]
 function ControllerBuilder.build(name: string, getControllerFn: (string) -> any, getServiceFn: (string) -> any, getDomainFn: (string) -> any, setupFn: (scope: any) -> ())
 	-- Lazy load Weave to support testing injection if needed
 	local scope = Weave.Scope()
@@ -129,12 +132,20 @@ function ControllerBuilder.build(name: string, getControllerFn: (string) -> any,
 	return controller
 end
 
+--[=[
+	Runs a controller init lifecycle callback when one is registered.
+	@param controller controller: any
+]=]
 function ControllerBuilder.initialize(controller: any)
 	if controller._onInit then
 		controller._onInit()
 	end
 end
 
+--[=[
+	Runs a controller start lifecycle callback when one is registered.
+	@param controller controller: any
+]=]
 function ControllerBuilder.finalize(controller: any)
 	if controller._onStart then
 		controller._onStart()
